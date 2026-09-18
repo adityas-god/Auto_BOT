@@ -343,9 +343,21 @@ class GrafanaCapture:
                         except Exception:
                             pass
 
-                bot_log(f"⏳ Waiting {self.cfg.PAGE_LOAD_WAIT_SECONDS}s for graphs & queries to render...")
+                bot_log(f"⏳ Waiting for dashboard queries and graphs to finish rendering...")
                 try:
                     page.wait_for_load_state("networkidle", timeout=15000)
+                except Exception:
+                    pass
+
+                # Wait for any "Loading ..." indicator or spinner to disappear
+                try:
+                    page.wait_for_selector("text=/Loading/i, .panel-loading, .loading-bar", state="hidden", timeout=15000)
+                except Exception:
+                    pass
+
+                # Wait for actual dashboard panels or content grid to mount
+                try:
+                    page.wait_for_selector(".react-grid-layout, .panel-content, [data-testid*='panel'], .dashboard-container, table", state="visible", timeout=15000)
                 except Exception:
                     pass
 
