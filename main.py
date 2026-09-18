@@ -40,6 +40,7 @@ load_dotenv(dotenv_path=ENV_PATH, override=True)
 class Config:
     GRAFANA_URL = os.getenv("GRAFANA_URL", "").strip()
     GRAFANA_API_TOKEN = os.getenv("GRAFANA_API_TOKEN", "").strip()
+    GRAFANA_COOKIE = os.getenv("GRAFANA_COOKIE", "").strip()
     GRAFANA_USERNAME = os.getenv("GRAFANA_USERNAME", "").strip()
     GRAFANA_PASSWORD = os.getenv("GRAFANA_PASSWORD", "").strip()
     SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "").strip()
@@ -60,6 +61,7 @@ class Config:
         load_dotenv(dotenv_path=ENV_PATH, override=True)
         cls.GRAFANA_URL = os.getenv("GRAFANA_URL", "").strip()
         cls.GRAFANA_API_TOKEN = os.getenv("GRAFANA_API_TOKEN", "").strip()
+        cls.GRAFANA_COOKIE = os.getenv("GRAFANA_COOKIE", "").strip()
         cls.GRAFANA_USERNAME = os.getenv("GRAFANA_USERNAME", "").strip()
         cls.GRAFANA_PASSWORD = os.getenv("GRAFANA_PASSWORD", "").strip()
         cls.SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "").strip()
@@ -160,7 +162,7 @@ class GrafanaCapture:
         except Exception:
             return raw_url
 
-    def capture_screenshot(self, target_url=None, output_path=None, username=None, password=None, token=None):
+    def capture_screenshot(self, target_url=None, output_path=None, username=None, password=None, token=None, cookie=None):
         url_to_capture = target_url or self.cfg.GRAFANA_URL
         if not url_to_capture:
             raise ValueError("No Grafana URL configured.")
@@ -176,6 +178,7 @@ class GrafanaCapture:
         user = username if username is not None else self.cfg.GRAFANA_USERNAME
         pwd = password if password is not None else self.cfg.GRAFANA_PASSWORD
         auth_token = token if token is not None else self.cfg.GRAFANA_API_TOKEN
+        auth_cookie = cookie if cookie is not None else self.cfg.GRAFANA_COOKIE
 
         extra_headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -185,6 +188,10 @@ class GrafanaCapture:
         if auth_token:
             extra_headers["Authorization"] = f"Bearer {auth_token}"
             bot_log("🔐 Authenticating with Grafana Service Account Token (Bearer)")
+
+        if auth_cookie:
+            extra_headers["Cookie"] = auth_cookie.strip()
+            bot_log("🍪 Authenticating with Session Cookie")
 
         with sync_playwright() as p:
             browser = p.chromium.launch(
@@ -212,6 +219,50 @@ class GrafanaCapture:
                 extra_http_headers=extra_headers,
                 ignore_https_errors=True
             )
+
+            # Inject cookies into context for client-side JS & subsequent requests
+            if auth_cookie:
+                try:
+                    cookies_to_add = []
+                    raw_cookie = auth_cookie.strip()
+                    if raw_cookie.startswith("[") or raw_cookie.startswith("{"):
+                        try:
+                            parsed_json = json.loads(raw_cookie)
+                            if isinstance(parsed_json, list):
+                                for c in parsed_json:
+                                    if isinstance(c, dict) and "name" in c and "value" in c:
+                                        entry = {"name": str(c["name"]), "value": str(c["value"])}
+                                        if "domain" in c:
+                                            entry["domain"] = c["domain"]
+                                        elif "url" in c:
+                                            entry["url"] = c["url"]
+                                        else:
+                                            entry["url"] = prepared_url
+                                        if "path" in c:
+                                            entry["path"] = c["path"]
+                                        cookies_to_add.append(entry)
+                            elif isinstance(parsed_json, dict):
+                                for k, v in parsed_json.items():
+                                    cookies_to_add.append({"name": str(k), "value": str(v), "url": prepared_url})
+                        except Exception:
+                            pass
+
+                    if not cookies_to_add:
+                        for part in raw_cookie.split(";"):
+                            part = part.strip()
+                            if not part:
+                                continue
+                            if "=" in part:
+                                cname, cval = part.split("=", 1)
+                                cookies_to_add.append({"name": cname.strip(), "value": cval.strip(), "url": prepared_url})
+                            else:
+                                cookies_to_add.append({"name": "grafana_session", "value": part.strip(), "url": prepared_url})
+
+                    if cookies_to_add:
+                        context.add_cookies(cookies_to_add)
+                        bot_log(f"🍪 Injected {len(cookies_to_add)} session cookie(s) into browser context")
+                except Exception as cookie_err:
+                    bot_log(f"⚠️ Warning adding cookies to context: {cookie_err}")
 
             page = context.new_page()
 
@@ -244,8 +295,11 @@ class GrafanaCapture:
                 is_login = "/login" in page.url or (has_pass_input and has_login_btn)
 
                 if is_login:
+                    if auth_cookie:
+                        bot_log("⚠️ Login screen detected despite session cookie. The session cookie may have expired.")
                     if not user or not pwd:
-                        bot_log("⚠️ Grafana login screen detected, but Username / Password are not configured in settings!")
+                        if not auth_cookie and not auth_token:
+                            bot_log("⚠️ Grafana login screen detected, but Username / Password / Cookie are not configured in settings!")
                     else:
                         bot_log(f"🔑 Detected login screen. Authenticating as '{user}'...")
                         user_elem = page.locator("input[name='user'], input[id='login-view-username'], input[placeholder*='email' i], input[placeholder*='username' i], input[type='text']").first
@@ -656,10 +710,18 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
 
       <!-- Grafana Service Account Token (Recommended) -->
       <div class="form-group">
-        <label for="GRAFANA_API_TOKEN">🔑 Grafana Service Account Token <span style="color: var(--accent-emerald); font-size: 11px;">(Recommended - Bypasses Password/Google SSO)</span></label>
+        <label for="GRAFANA_API_TOKEN">🔑 Grafana Service Account Token <span style="color: var(--accent-emerald); font-size: 11px;">(Option 1: API Token)</span></label>
         <input type="password" id="GRAFANA_API_TOKEN" class="input input-code" 
                placeholder="glsa_your_service_account_token_here">
         <div class="hint">Generated in Grafana under <b>Administration → Users and access → Service accounts</b>.</div>
+      </div>
+
+      <!-- Grafana Session Cookie (Bypass SSO / Okta / Login Screen) -->
+      <div class="form-group">
+        <label for="GRAFANA_COOKIE">🍪 Grafana Session Cookie <span style="color: var(--accent-emerald); font-size: 11px;">(Option 2: Recommended for SSO / Google / Okta - Bypasses Login Screen)</span></label>
+        <input type="password" id="GRAFANA_COOKIE" class="input input-code" 
+               placeholder="grafana_session=abcdef... (or paste full Cookie header / string)">
+        <div class="hint">Copy from your logged-in browser (DevTools F12 → Application → Cookies → <code>grafana_session</code>, or Network tab <code>Cookie</code> header).</div>
       </div>
 
       <!-- Grafana Credentials (Auto-Login Fallback) -->
@@ -770,6 +832,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
         const c = data.config;
         if (c.grafana_url) document.getElementById("GRAFANA_URL").value = c.grafana_url;
         if (c.grafana_token_set) document.getElementById("GRAFANA_API_TOKEN").value = "••••••••••••••••••••••••";
+        if (c.grafana_cookie_set) document.getElementById("GRAFANA_COOKIE").value = "••••••••••••••••••••••••";
         if (c.slack_channel_id) document.getElementById("SLACK_CHANNEL_ID").value = c.slack_channel_id;
         if (c.slack_message) document.getElementById("SLACK_MESSAGE").value = c.slack_message;
         if (c.interval) document.getElementById("SCHEDULE_INTERVAL_MINUTES").value = c.interval;
@@ -828,6 +891,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
   async function saveAll() {
     const grafanaUrl = document.getElementById("GRAFANA_URL").value.trim();
     const gToken = document.getElementById("GRAFANA_API_TOKEN").value.trim();
+    const gCookie = document.getElementById("GRAFANA_COOKIE").value.trim();
     const gUser = document.getElementById("GRAFANA_USERNAME").value.trim();
     const gPass = document.getElementById("GRAFANA_PASSWORD").value.trim();
     const token = document.getElementById("SLACK_BOT_TOKEN").value.trim();
@@ -850,10 +914,20 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
 
     if (gToken && !gToken.startsWith("••••")) {
       payload.GRAFANA_API_TOKEN = gToken;
+    } else if (gToken === "") {
+      payload.GRAFANA_API_TOKEN = "";
+    }
+
+    if (gCookie && !gCookie.startsWith("••••")) {
+      payload.GRAFANA_COOKIE = gCookie;
+    } else if (gCookie === "") {
+      payload.GRAFANA_COOKIE = "";
     }
 
     if (gPass && !gPass.startsWith("••••")) {
       payload.GRAFANA_PASSWORD = gPass;
+    } else if (gPass === "") {
+      payload.GRAFANA_PASSWORD = "";
     }
 
     if (token && !token.startsWith("••••")) {
@@ -881,6 +955,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
   async function previewSnapshot() {
     const url = document.getElementById("GRAFANA_URL").value.trim();
     const gToken = document.getElementById("GRAFANA_API_TOKEN").value.trim();
+    const gCookie = document.getElementById("GRAFANA_COOKIE").value.trim();
     const gUser = document.getElementById("GRAFANA_USERNAME").value.trim();
     const gPass = document.getElementById("GRAFANA_PASSWORD").value.trim();
 
@@ -901,6 +976,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
         body: JSON.stringify({
           url: url,
           token: gToken && !gToken.startsWith("••••") ? gToken : undefined,
+          cookie: gCookie && !gCookie.startsWith("••••") ? gCookie : undefined,
           username: gUser,
           password: gPass
         })
@@ -1011,6 +1087,7 @@ def get_status():
         "config": {
             "grafana_url": Config.GRAFANA_URL,
             "grafana_token_set": bool(Config.GRAFANA_API_TOKEN),
+            "grafana_cookie_set": bool(Config.GRAFANA_COOKIE),
             "grafana_username": Config.GRAFANA_USERNAME,
             "grafana_password_set": bool(Config.GRAFANA_PASSWORD),
             "slack_channel_id": Config.SLACK_CHANNEL_ID,
@@ -1033,6 +1110,11 @@ def update_settings():
         val = str(data["GRAFANA_API_TOKEN"]).strip()
         if not val.startswith("••••"):
             updates["GRAFANA_API_TOKEN"] = val
+
+    if "GRAFANA_COOKIE" in data:
+        val = str(data["GRAFANA_COOKIE"]).strip()
+        if not val.startswith("••••"):
+            updates["GRAFANA_COOKIE"] = val
 
     if "GRAFANA_USERNAME" in data:
         updates["GRAFANA_USERNAME"] = str(data["GRAFANA_USERNAME"]).strip()
@@ -1059,7 +1141,7 @@ def update_settings():
 
     if updates:
         Config.save_settings(updates)
-        bot_log(f"💾 Settings saved to .env (Token configured: {bool(Config.GRAFANA_API_TOKEN)})")
+        bot_log(f"💾 Settings saved to .env (Token: {bool(Config.GRAFANA_API_TOKEN)}, Cookie: {bool(Config.GRAFANA_COOKIE)})")
 
     return jsonify({"success": True, "message": "Settings saved successfully"})
 
@@ -1075,6 +1157,10 @@ def preview_capture():
     if token and token.startswith("••••"):
         token = None
 
+    cookie = data.get("cookie")
+    if cookie and cookie.startswith("••••"):
+        cookie = None
+
     username = data.get("username")
     password = data.get("password")
     if password and password.startswith("••••"):
@@ -1085,7 +1171,7 @@ def preview_capture():
         capture = GrafanaCapture()
         preview_filename = f"preview_{int(time.time())}.png"
         preview_path = os.path.join(tempfile.gettempdir(), preview_filename)
-        capture.capture_screenshot(target_url=url, output_path=preview_path, username=username, password=password, token=token)
+        capture.capture_screenshot(target_url=url, output_path=preview_path, username=username, password=password, token=token, cookie=cookie)
         size_kb = os.path.getsize(preview_path) / 1024
 
         return jsonify({
