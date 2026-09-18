@@ -3,7 +3,7 @@
 Grafana to Slack Headless Bot - Clean Streamlined Operations Hub
 - 100% Headless browser capture (Playwright Chromium)
 - Modern 3-step Slack S3 Upload API
-- Ultra-Clean Minimal Single-Card Web UI (Port 5000)
+- Ultra-Clean Minimal Single-Card Web UI with In-Browser Snapshot Preview
 - Auto-syncs directly to .env
 """
 
@@ -44,7 +44,6 @@ class Config:
     SLACK_MESSAGE = os.getenv("SLACK_MESSAGE", "📊 *Grafana Snapshot Alert* - {datetime}").strip()
     SCHEDULE_INTERVAL_MINUTES = int(os.getenv("SCHEDULE_INTERVAL_MINUTES", "30"))
 
-    # Sensible internal defaults
     TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata").strip()
     VIEWPORT_WIDTH = 1920
     VIEWPORT_HEIGHT = 1080
@@ -65,7 +64,6 @@ class Config:
 
     @classmethod
     def parse_channel_id(cls, raw_input):
-        """Extracts C... ID even if the user pastes the full Slack channel URL."""
         val = raw_input.strip()
         if "/archives/" in val:
             parts = val.rstrip("/").split("/")
@@ -193,7 +191,7 @@ class GrafanaCapture:
             try:
                 page.goto(prepared_url, wait_until="domcontentloaded", timeout=45000)
 
-                bot_log(f"⏳ Waiting {self.cfg.PAGE_LOAD_WAIT_SECONDS}s for graphs to render...")
+                bot_log(f"⏳ Waiting {self.cfg.PAGE_LOAD_WAIT_SECONDS}s for graphs & queries to render...")
                 try:
                     page.wait_for_load_state("networkidle", timeout=15000)
                 except Exception:
@@ -216,7 +214,7 @@ class GrafanaCapture:
                     page.screenshot(path=output_path, full_page=False)
 
                 file_size = os.path.getsize(output_path)
-                bot_log(f"📸 Captured snapshot successfully ({file_size / 1024:.1f} KB)")
+                bot_log(f"📸 Captured snapshot successfully! ({file_size / 1024:.1f} KB)")
                 return output_path
 
             finally:
@@ -268,7 +266,6 @@ class SlackUploader:
         comment = message_text or Config.get_formatted_message()
 
         try:
-            # Step 1: Request presigned upload URL
             resp1 = requests.get(
                 "https://slack.com/api/files.getUploadURLExternal",
                 headers=self.headers,
@@ -282,7 +279,6 @@ class SlackUploader:
             upload_url = data1["upload_url"]
             file_id = data1["file_id"]
 
-            # Step 2: Binary S3 upload
             with open(image_path, "rb") as f:
                 file_bytes = f.read()
 
@@ -295,7 +291,6 @@ class SlackUploader:
             if resp2.status_code not in (200, 201, 204):
                 return False, f"Slack S3 upload failed (HTTP {resp2.status_code})"
 
-            # Step 3: Complete upload
             resp3 = requests.post(
                 "https://slack.com/api/files.completeUploadExternal",
                 headers={**self.headers, "Content-Type": "application/json; charset=utf-8"},
@@ -346,32 +341,35 @@ def execute_cycle():
                 BOT_STATE["last_status"] = "Grafana Link Missing"
             return
 
-        if not Config.SLACK_BOT_TOKEN or not Config.SLACK_CHANNEL_ID:
-            bot_log("❌ Slack Bot Token or Channel ID is missing!")
-            with _state_lock:
-                BOT_STATE["last_status"] = "Slack Config Missing"
-            return
-
-        bot_log(f"🚀 Starting capture for: {Config.GRAFANA_URL}")
+        bot_log(f"🚀 Capturing screenshot for: {Config.GRAFANA_URL}")
         capture = GrafanaCapture()
         image_path = capture.capture_screenshot()
+        size_kb = os.path.getsize(image_path) / 1024
+
+        if not Config.SLACK_BOT_TOKEN or not Config.SLACK_CHANNEL_ID:
+            bot_log(f"⚠️ Screenshot captured successfully ({size_kb:.1f} KB)!")
+            bot_log("ℹ️ Slack upload skipped because Slack Bot Token or Channel ID is not configured yet.")
+            with _state_lock:
+                BOT_STATE["last_run_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                BOT_STATE["last_status"] = f"Captured ({size_kb:.1f} KB) - Slack Pending"
+            return
 
         bot_log(f"📤 Uploading snapshot to Slack channel {Config.SLACK_CHANNEL_ID}...")
         uploader = SlackUploader()
         ok, res = uploader.upload_screenshot(image_path)
 
         if ok:
-            bot_log("✅ Successfully sent snapshot to Slack!")
+            bot_log("✅ Successfully uploaded snapshot to Slack!")
             with _state_lock:
                 BOT_STATE["last_run_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 BOT_STATE["last_status"] = "Success"
         else:
-            bot_log(f"❌ Slack upload failed: {res}")
+            bot_log(f"❌ Slack upload error: {res}")
             with _state_lock:
                 BOT_STATE["last_status"] = f"Slack Error: {res}"
 
     except Exception as e:
-        bot_log(f"💥 Error: {e}")
+        bot_log(f"💥 Capture Error: {e}")
         with _state_lock:
             BOT_STATE["last_status"] = f"Error: {e}"
     finally:
@@ -478,9 +476,11 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
     }
     .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5); }
     
-    .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+    .btn-group { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 14px; }
     .btn-secondary { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border); color: var(--text); }
     .btn-secondary:hover { background: rgba(255, 255, 255, 0.12); }
+    .btn-info { background: rgba(6, 182, 212, 0.15); border: 1px solid rgba(6, 182, 212, 0.3); color: #06b6d4; }
+    .btn-info:hover { background: rgba(6, 182, 212, 0.25); }
     .btn-success { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--accent-emerald); }
     .btn-success:hover { background: rgba(16, 185, 129, 0.25); }
 
@@ -492,12 +492,27 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
       background: #0c101b; padding: 10px 16px; display: flex; justify-content: space-between;
       color: var(--text-muted); font-size: 11px; border-bottom: 1px solid var(--border);
     }
-    .terminal-content { padding: 14px; height: 180px; overflow-y: auto; color: #94a3b8; line-height: 1.6; }
+    .terminal-content { padding: 14px; height: 200px; overflow-y: auto; color: #94a3b8; line-height: 1.6; }
     .terminal-content div { margin-bottom: 3px; }
+
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px);
+      display: none; align-items: center; justify-content: center; z-index: 2000; padding: 20px;
+    }
+    .modal-box {
+      background: #111827; border: 1px solid var(--border); border-radius: var(--radius);
+      max-width: 900px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;
+    }
+    .modal-header {
+      padding: 14px 20px; display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid var(--border); font-size: 15px; font-weight: 600;
+    }
+    .modal-body { padding: 20px; overflow-y: auto; text-align: center; }
+    .modal-body img { max-width: 100%; border-radius: 8px; border: 1px solid var(--border); }
 
     .toast {
       position: fixed; bottom: 24px; right: 24px; padding: 12px 18px; border-radius: 8px;
-      background: #1e293b; color: #fff; font-size: 13px; display: none; z-index: 1000;
+      background: #1e293b; color: #fff; font-size: 13px; display: none; z-index: 3000;
       box-shadow: 0 10px 25px rgba(0,0,0,0.5); border-left: 4px solid var(--primary);
     }
   </style>
@@ -570,6 +585,9 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
 
       <!-- Action Buttons -->
       <div class="btn-group">
+        <button type="button" class="btn btn-info" onclick="previewSnapshot()" id="btn-preview">
+          📸 Preview Snapshot
+        </button>
         <button type="button" class="btn btn-secondary" onclick="testSlack()" id="btn-slack">
           💬 Test Slack
         </button>
@@ -589,6 +607,17 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
     <div class="terminal-content" id="log-output">
       <div>[Ready] Waiting for configuration...</div>
     </div>
+  </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal-backdrop" id="preview-modal" onclick="closeModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span>📸 Live Headless Capture Preview</span>
+      <button type="button" class="btn btn-secondary" style="padding: 4px 10px; font-size: 12px;" onclick="closeModal()">✕ Close</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
   </div>
 </div>
 
@@ -624,7 +653,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
     const text = document.getElementById("status-text");
     const dot = document.querySelector(".status-dot");
     if (state.is_running) {
-      text.innerText = "Capturing & Uploading...";
+      text.innerText = "Capturing...";
       dot.style.background = "#06b6d4";
       dot.style.boxShadow = "0 0 8px #06b6d4";
     } else {
@@ -675,6 +704,40 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
     }
   }
 
+  async function previewSnapshot() {
+    const url = document.getElementById("GRAFANA_URL").value.trim();
+    if (!url) {
+      showToast("❌ Please enter a Grafana Link first!", true);
+      return;
+    }
+
+    const modal = document.getElementById("preview-modal");
+    const body = document.getElementById("modal-body");
+    body.innerHTML = "<p style='color: #94a3b8; padding: 20px;'>⏳ Launching headless Chromium & rendering charts...</p>";
+    modal.style.display = "flex";
+
+    try {
+      const res = await fetch("/api/preview-capture", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: url })
+      });
+      const data = await res.json();
+      if (data.success) {
+        body.innerHTML = `<img src="${data.image_url}?t=${Date.now()}"><p style="color:var(--accent-emerald); font-size:12px; margin-top:10px;">${data.message}</p>`;
+      } else {
+        body.innerHTML = `<p style="color: var(--accent-rose); padding: 20px;">❌ Capture Failed: ${data.error}</p>`;
+      }
+    } catch(e) {
+      body.innerHTML = "<p style='color: var(--accent-rose); padding: 20px;'>❌ Network Error during capture.</p>";
+    }
+    fetchLogs();
+  }
+
+  function closeModal() {
+    document.getElementById("preview-modal").style.display = "none";
+  }
+
   async function testSlack() {
     const btn = document.getElementById("btn-slack");
     btn.disabled = true;
@@ -700,7 +763,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
     try {
       const res = await fetch("/api/trigger", { method: "POST" });
       const data = await res.json();
-      if (data.success) showToast("🚀 Capture & Upload started!");
+      if (data.success) showToast("🚀 Capture started! Check log box.");
       else showToast("⚠️ " + data.error, true);
     } catch(e) {
       showToast("❌ Run failed", true);
@@ -800,6 +863,40 @@ def update_settings():
         bot_log(f"💾 Updated settings saved to .env (Grafana URL: {Config.GRAFANA_URL or 'None'})")
 
     return jsonify({"success": True, "message": "Settings saved successfully"})
+
+
+@app.route("/api/preview-capture", methods=["POST"])
+def preview_capture():
+    data = request.get_json() or {}
+    url = data.get("url") or Config.GRAFANA_URL
+    if not url:
+        return jsonify({"success": False, "error": "No Grafana URL provided."}), 400
+
+    bot_log(f"📸 Live Preview Request for: {url}")
+    try:
+        capture = GrafanaCapture()
+        preview_filename = f"preview_{int(time.time())}.png"
+        preview_path = os.path.join(tempfile.gettempdir(), preview_filename)
+        capture.capture_screenshot(target_url=url, output_path=preview_path)
+        size_kb = os.path.getsize(preview_path) / 1024
+
+        return jsonify({
+            "success": True,
+            "image_url": f"/api/preview-image/{preview_filename}",
+            "message": f"Successfully captured snapshot ({size_kb:.1f} KB)"
+        })
+    except Exception as e:
+        bot_log(f"❌ Preview capture failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/preview-image/<filename>", methods=["GET"])
+def get_preview_image(filename):
+    safe_name = os.path.basename(filename)
+    path = os.path.join(tempfile.gettempdir(), safe_name)
+    if os.path.exists(path):
+        return send_file(path, mimetype="image/png")
+    return "Not found", 404
 
 
 @app.route("/api/trigger", methods=["POST"])
