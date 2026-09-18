@@ -5,8 +5,7 @@ services:
     build: .
     container_name: grafana-slack-bot
     restart: unless-stopped
-    ports:
-      - "5000:5000"
+    network_mode: "host"
     volumes:
       - ./.env:/app/.env
     environment:

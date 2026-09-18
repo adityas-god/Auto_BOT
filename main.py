@@ -177,7 +177,11 @@ class GrafanaCapture:
         pwd = password if password is not None else self.cfg.GRAFANA_PASSWORD
         auth_token = token if token is not None else self.cfg.GRAFANA_API_TOKEN
 
-        extra_headers = {}
+        extra_headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
         if auth_token:
             extra_headers["Authorization"] = f"Bearer {auth_token}"
             bot_log("🔐 Authenticating with Grafana Service Account Token (Bearer)")
@@ -193,7 +197,8 @@ class GrafanaCapture:
                     "--hide-scrollbars",
                     "--mute-audio",
                     "--ignore-certificate-errors",
-                    "--disable-web-security"
+                    "--disable-web-security",
+                    "--disable-blink-features=AutomationControlled"
                 ]
             )
 
@@ -203,6 +208,7 @@ class GrafanaCapture:
                     "height": self.cfg.VIEWPORT_HEIGHT
                 },
                 device_scale_factor=1.0,
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                 extra_http_headers=extra_headers,
                 ignore_https_errors=True
             )
@@ -211,10 +217,17 @@ class GrafanaCapture:
 
             try:
                 try:
-                    page.goto(prepared_url, wait_until="commit", timeout=30000)
-                    page.wait_for_load_state("domcontentloaded", timeout=15000)
+                    response = page.goto(prepared_url, wait_until="commit", timeout=15000)
+                    if response and response.status >= 400:
+                        bot_log(f"⚠️ Server returned HTTP status {response.status}")
+                    page.wait_for_load_state("domcontentloaded", timeout=10000)
                 except Exception as nav_err:
-                    bot_log(f"⚠️ Navigation warning: {nav_err}")
+                    err_str = str(nav_err)
+                    if "ERR_CONNECTION_REFUSED" in err_str:
+                        raise ValueError(f"Connection refused at '{prepared_url}'. Verify the service is running and accessible.")
+                    if "Timeout" in err_str:
+                        raise TimeoutError(f"Connection timed out (15s) reaching '{prepared_url}'. The VM network/firewall cannot reach this server.")
+                    raise RuntimeError(f"Navigation failed: {nav_err}")
 
                 # Wait up to 6 seconds for either login inputs or dashboard elements to show
                 try:
