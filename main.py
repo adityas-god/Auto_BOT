@@ -39,6 +39,8 @@ load_dotenv(dotenv_path=ENV_PATH, override=True)
 # ==============================================================================
 class Config:
     GRAFANA_URL = os.getenv("GRAFANA_URL", "").strip()
+    GRAFANA_USERNAME = os.getenv("GRAFANA_USERNAME", "").strip()
+    GRAFANA_PASSWORD = os.getenv("GRAFANA_PASSWORD", "").strip()
     SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "").strip()
     SLACK_CHANNEL_ID = os.getenv("SLACK_CHANNEL_ID", "").strip()
     SLACK_MESSAGE = os.getenv("SLACK_MESSAGE", "📊 *Grafana Snapshot Alert* - {datetime}").strip()
@@ -55,6 +57,8 @@ class Config:
     def reload(cls):
         load_dotenv(dotenv_path=ENV_PATH, override=True)
         cls.GRAFANA_URL = os.getenv("GRAFANA_URL", "").strip()
+        cls.GRAFANA_USERNAME = os.getenv("GRAFANA_USERNAME", "").strip()
+        cls.GRAFANA_PASSWORD = os.getenv("GRAFANA_PASSWORD", "").strip()
         cls.SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "").strip()
         cls.SLACK_CHANNEL_ID = os.getenv("SLACK_CHANNEL_ID", "").strip()
         cls.SLACK_MESSAGE = os.getenv("SLACK_MESSAGE", "📊 *Grafana Snapshot Alert* - {datetime}").strip()
@@ -152,7 +156,7 @@ class GrafanaCapture:
         except Exception:
             return raw_url
 
-    def capture_screenshot(self, target_url=None, output_path=None):
+    def capture_screenshot(self, target_url=None, output_path=None, username=None, password=None):
         url_to_capture = target_url or self.cfg.GRAFANA_URL
         if not url_to_capture:
             raise ValueError("No Grafana URL configured.")
@@ -164,6 +168,9 @@ class GrafanaCapture:
 
         prepared_url = self._prepare_url(url_to_capture)
         bot_log(f"🌐 Navigating headlessly to Grafana: {prepared_url}")
+
+        user = username if username is not None else self.cfg.GRAFANA_USERNAME
+        pwd = password if password is not None else self.cfg.GRAFANA_PASSWORD
 
         with sync_playwright() as p:
             browser = p.chromium.launch(
@@ -190,6 +197,60 @@ class GrafanaCapture:
 
             try:
                 page.goto(prepared_url, wait_until="domcontentloaded", timeout=45000)
+
+                # Wait up to 6 seconds for either login inputs or dashboard elements to show
+                try:
+                    page.wait_for_selector(
+                        "input[type='password'], input[name='user'], input[placeholder*='username' i], input[placeholder*='email' i], button:has-text('Log in'), .react-grid-layout, .dashboard-container, [data-testid='dashboard-content']",
+                        timeout=6000
+                    )
+                except Exception:
+                    pass
+
+                # Check if we landed on a login screen
+                has_pass_input = page.locator("input[type='password'], input[name='password']").count() > 0
+                has_login_btn = page.locator("button:has-text('Log in'), button:has-text('Login'), button[type='submit']").count() > 0
+                is_login = "/login" in page.url or (has_pass_input and has_login_btn)
+
+                if is_login:
+                    if not user or not pwd:
+                        bot_log("⚠️ Grafana login screen detected, but Username / Password are not configured in settings!")
+                    else:
+                        bot_log(f"🔑 Detected login screen. Authenticating as '{user}'...")
+                        user_elem = page.locator("input[name='user'], input[id='login-view-username'], input[placeholder*='email' i], input[placeholder*='username' i], input[type='text']").first
+                        if user_elem.count() > 0:
+                            user_elem.fill(user)
+                        time.sleep(0.5)
+
+                        pass_elem = page.locator("input[name='password'], input[id='login-view-password'], input[placeholder*='password' i], input[type='password']").first
+                        if pass_elem.count() > 0:
+                            pass_elem.fill(pwd)
+                        time.sleep(0.5)
+
+                        submit_elem = page.locator("button[type='submit'], button:has-text('Log in'), button:has-text('Login')").first
+                        if submit_elem.count() > 0:
+                            submit_elem.click()
+                            bot_log("⏳ Clicked 'Log in', waiting for session...")
+
+                        try:
+                            page.wait_for_load_state("networkidle", timeout=15000)
+                        except Exception:
+                            pass
+                        time.sleep(3)
+
+                        # Skip password change prompt if present
+                        skip_btn = page.locator("button:has-text('Skip'), a:has-text('Skip'), text='Skip'").first
+                        if skip_btn.count() > 0 and skip_btn.is_visible():
+                            bot_log("⏩ Skipping password change prompt...")
+                            skip_btn.click()
+                            time.sleep(2)
+
+                        # Check if still on login page
+                        if "/login" in page.url or page.locator("input[type='password']").is_visible():
+                            bot_log("⚠️ Still on login screen. Please check if username/password are correct.")
+                        elif prepared_url not in page.url:
+                            bot_log(f"🌐 Redirecting to target dashboard: {prepared_url}")
+                            page.goto(prepared_url, wait_until="domcontentloaded", timeout=30000)
 
                 bot_log(f"⏳ Waiting {self.cfg.PAGE_LOAD_WAIT_SECONDS}s for graphs & queries to render...")
                 try:
@@ -546,6 +607,20 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
         <div class="hint">The direct URL to your Grafana dashboard or panel.</div>
       </div>
 
+      <!-- Grafana Credentials (Auto-Login) -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px;">
+        <div>
+          <label for="GRAFANA_USERNAME">👤 Grafana Username / Email</label>
+          <input type="text" id="GRAFANA_USERNAME" class="input" placeholder="admin or email">
+          <div class="hint">Auto-types into login screen.</div>
+        </div>
+        <div>
+          <label for="GRAFANA_PASSWORD">🔒 Grafana Password</label>
+          <input type="password" id="GRAFANA_PASSWORD" class="input" placeholder="••••••••">
+          <div class="hint">Your Grafana password.</div>
+        </div>
+      </div>
+
       <!-- 2. Slack Auth Token -->
       <div class="form-group">
         <label for="SLACK_BOT_TOKEN">🔑 Slack Bot Auth Token</label>
@@ -643,6 +718,8 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
         if (c.slack_message) document.getElementById("SLACK_MESSAGE").value = c.slack_message;
         if (c.interval) document.getElementById("SCHEDULE_INTERVAL_MINUTES").value = c.interval;
         if (c.slack_token_set) document.getElementById("SLACK_BOT_TOKEN").value = "••••••••••••••••••••••••";
+        if (c.grafana_username) document.getElementById("GRAFANA_USERNAME").value = c.grafana_username;
+        if (c.grafana_password_set) document.getElementById("GRAFANA_PASSWORD").value = "••••••••••••••••";
       }
       updateStatus(data.bot_state);
     } catch(e) {}
@@ -665,6 +742,8 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
 
   async function saveAll() {
     const grafanaUrl = document.getElementById("GRAFANA_URL").value.trim();
+    const gUser = document.getElementById("GRAFANA_USERNAME").value.trim();
+    const gPass = document.getElementById("GRAFANA_PASSWORD").value.trim();
     const token = document.getElementById("SLACK_BOT_TOKEN").value.trim();
     const channel = document.getElementById("SLACK_CHANNEL_ID").value.trim();
     const message = document.getElementById("SLACK_MESSAGE").value.trim();
@@ -677,10 +756,15 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
 
     const payload = {
       GRAFANA_URL: grafanaUrl,
+      GRAFANA_USERNAME: gUser,
       SLACK_CHANNEL_ID: channel,
       SLACK_MESSAGE: message,
       SCHEDULE_INTERVAL_MINUTES: interval
     };
+
+    if (gPass && !gPass.startsWith("••••")) {
+      payload.GRAFANA_PASSWORD = gPass;
+    }
 
     if (token && !token.startsWith("••••")) {
       payload.SLACK_BOT_TOKEN = token;
@@ -706,6 +790,9 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
 
   async function previewSnapshot() {
     const url = document.getElementById("GRAFANA_URL").value.trim();
+    const gUser = document.getElementById("GRAFANA_USERNAME").value.trim();
+    const gPass = document.getElementById("GRAFANA_PASSWORD").value.trim();
+
     if (!url) {
       showToast("❌ Please enter a Grafana Link first!", true);
       return;
@@ -720,7 +807,11 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
       const res = await fetch("/api/preview-capture", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url })
+        body: JSON.stringify({
+          url: url,
+          username: gUser,
+          password: gPass
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -827,6 +918,8 @@ def get_status():
         "bot_state": state,
         "config": {
             "grafana_url": Config.GRAFANA_URL,
+            "grafana_username": Config.GRAFANA_USERNAME,
+            "grafana_password_set": bool(Config.GRAFANA_PASSWORD),
             "slack_channel_id": Config.SLACK_CHANNEL_ID,
             "slack_message": Config.SLACK_MESSAGE,
             "interval": Config.SCHEDULE_INTERVAL_MINUTES,
@@ -842,6 +935,14 @@ def update_settings():
 
     if "GRAFANA_URL" in data:
         updates["GRAFANA_URL"] = str(data["GRAFANA_URL"]).strip()
+
+    if "GRAFANA_USERNAME" in data:
+        updates["GRAFANA_USERNAME"] = str(data["GRAFANA_USERNAME"]).strip()
+
+    if "GRAFANA_PASSWORD" in data:
+        val = str(data["GRAFANA_PASSWORD"]).strip()
+        if not val.startswith("••••"):
+            updates["GRAFANA_PASSWORD"] = val
 
     if "SLACK_CHANNEL_ID" in data:
         raw_chan = str(data["SLACK_CHANNEL_ID"]).strip()
@@ -860,7 +961,7 @@ def update_settings():
 
     if updates:
         Config.save_settings(updates)
-        bot_log(f"💾 Updated settings saved to .env (Grafana URL: {Config.GRAFANA_URL or 'None'})")
+        bot_log(f"💾 Settings saved to .env (User: {Config.GRAFANA_USERNAME or 'None'})")
 
     return jsonify({"success": True, "message": "Settings saved successfully"})
 
@@ -872,12 +973,17 @@ def preview_capture():
     if not url:
         return jsonify({"success": False, "error": "No Grafana URL provided."}), 400
 
+    username = data.get("username")
+    password = data.get("password")
+    if password and password.startswith("••••"):
+        password = None
+
     bot_log(f"📸 Live Preview Request for: {url}")
     try:
         capture = GrafanaCapture()
         preview_filename = f"preview_{int(time.time())}.png"
         preview_path = os.path.join(tempfile.gettempdir(), preview_filename)
-        capture.capture_screenshot(target_url=url, output_path=preview_path)
+        capture.capture_screenshot(target_url=url, output_path=preview_path, username=username, password=password)
         size_kb = os.path.getsize(preview_path) / 1024
 
         return jsonify({
