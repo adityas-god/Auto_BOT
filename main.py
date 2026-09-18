@@ -39,6 +39,7 @@ load_dotenv(dotenv_path=ENV_PATH, override=True)
 # ==============================================================================
 class Config:
     GRAFANA_URL = os.getenv("GRAFANA_URL", "").strip()
+    GRAFANA_API_TOKEN = os.getenv("GRAFANA_API_TOKEN", "").strip()
     GRAFANA_USERNAME = os.getenv("GRAFANA_USERNAME", "").strip()
     GRAFANA_PASSWORD = os.getenv("GRAFANA_PASSWORD", "").strip()
     SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "").strip()
@@ -57,6 +58,7 @@ class Config:
     def reload(cls):
         load_dotenv(dotenv_path=ENV_PATH, override=True)
         cls.GRAFANA_URL = os.getenv("GRAFANA_URL", "").strip()
+        cls.GRAFANA_API_TOKEN = os.getenv("GRAFANA_API_TOKEN", "").strip()
         cls.GRAFANA_USERNAME = os.getenv("GRAFANA_USERNAME", "").strip()
         cls.GRAFANA_PASSWORD = os.getenv("GRAFANA_PASSWORD", "").strip()
         cls.SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "").strip()
@@ -156,7 +158,7 @@ class GrafanaCapture:
         except Exception:
             return raw_url
 
-    def capture_screenshot(self, target_url=None, output_path=None, username=None, password=None):
+    def capture_screenshot(self, target_url=None, output_path=None, username=None, password=None, token=None):
         url_to_capture = target_url or self.cfg.GRAFANA_URL
         if not url_to_capture:
             raise ValueError("No Grafana URL configured.")
@@ -171,6 +173,12 @@ class GrafanaCapture:
 
         user = username if username is not None else self.cfg.GRAFANA_USERNAME
         pwd = password if password is not None else self.cfg.GRAFANA_PASSWORD
+        auth_token = token if token is not None else self.cfg.GRAFANA_API_TOKEN
+
+        extra_headers = {}
+        if auth_token:
+            extra_headers["Authorization"] = f"Bearer {auth_token}"
+            bot_log("🔐 Authenticating with Grafana Service Account Token (Bearer)")
 
         with sync_playwright() as p:
             browser = p.chromium.launch(
@@ -190,7 +198,8 @@ class GrafanaCapture:
                     "width": self.cfg.VIEWPORT_WIDTH,
                     "height": self.cfg.VIEWPORT_HEIGHT
                 },
-                device_scale_factor=1.0
+                device_scale_factor=1.0,
+                extra_http_headers=extra_headers
             )
 
             page = context.new_page()
@@ -609,21 +618,29 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
       <div class="form-group">
         <label for="GRAFANA_URL">🌐 Grafana Dashboard Link</label>
         <input type="text" id="GRAFANA_URL" class="input input-code" 
-               placeholder="http://172.28.76.144:8088/d/xyz/dashboard-name?kiosk=tv">
+               placeholder="https://cloudwatch.greymatter.greyorange.com/d/xyz/dashboard?kiosk=tv">
         <div class="hint">The direct URL to your Grafana dashboard or panel.</div>
       </div>
 
-      <!-- Grafana Credentials (Auto-Login) -->
+      <!-- Grafana Service Account Token (Recommended) -->
+      <div class="form-group">
+        <label for="GRAFANA_API_TOKEN">🔑 Grafana Service Account Token <span style="color: var(--accent-emerald); font-size: 11px;">(Recommended - Bypasses Password/Google SSO)</span></label>
+        <input type="password" id="GRAFANA_API_TOKEN" class="input input-code" 
+               placeholder="glsa_your_service_account_token_here">
+        <div class="hint">Generated in Grafana under <b>Administration → Users and access → Service accounts</b>.</div>
+      </div>
+
+      <!-- Grafana Credentials (Auto-Login Fallback) -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px;">
         <div>
           <label for="GRAFANA_USERNAME">👤 Grafana Username / Email</label>
           <input type="text" id="GRAFANA_USERNAME" class="input" placeholder="admin or email">
-          <div class="hint">Auto-types into login screen.</div>
+          <div class="hint">Optional fallback if token is not used.</div>
         </div>
         <div>
           <label for="GRAFANA_PASSWORD">🔒 Grafana Password</label>
           <input type="password" id="GRAFANA_PASSWORD" class="input" placeholder="••••••••">
-          <div class="hint">Your Grafana password.</div>
+          <div class="hint">Optional fallback password.</div>
         </div>
       </div>
 
@@ -720,6 +737,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
       if (data.config) {
         const c = data.config;
         if (c.grafana_url) document.getElementById("GRAFANA_URL").value = c.grafana_url;
+        if (c.grafana_token_set) document.getElementById("GRAFANA_API_TOKEN").value = "••••••••••••••••••••••••";
         if (c.slack_channel_id) document.getElementById("SLACK_CHANNEL_ID").value = c.slack_channel_id;
         if (c.slack_message) document.getElementById("SLACK_MESSAGE").value = c.slack_message;
         if (c.interval) document.getElementById("SCHEDULE_INTERVAL_MINUTES").value = c.interval;
@@ -748,6 +766,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
 
   async function saveAll() {
     const grafanaUrl = document.getElementById("GRAFANA_URL").value.trim();
+    const gToken = document.getElementById("GRAFANA_API_TOKEN").value.trim();
     const gUser = document.getElementById("GRAFANA_USERNAME").value.trim();
     const gPass = document.getElementById("GRAFANA_PASSWORD").value.trim();
     const token = document.getElementById("SLACK_BOT_TOKEN").value.trim();
@@ -767,6 +786,10 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
       SLACK_MESSAGE: message,
       SCHEDULE_INTERVAL_MINUTES: interval
     };
+
+    if (gToken && !gToken.startsWith("••••")) {
+      payload.GRAFANA_API_TOKEN = gToken;
+    }
 
     if (gPass && !gPass.startsWith("••••")) {
       payload.GRAFANA_PASSWORD = gPass;
@@ -796,6 +819,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
 
   async function previewSnapshot() {
     const url = document.getElementById("GRAFANA_URL").value.trim();
+    const gToken = document.getElementById("GRAFANA_API_TOKEN").value.trim();
     const gUser = document.getElementById("GRAFANA_USERNAME").value.trim();
     const gPass = document.getElementById("GRAFANA_PASSWORD").value.trim();
 
@@ -815,6 +839,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           url: url,
+          token: gToken && !gToken.startsWith("••••") ? gToken : undefined,
           username: gUser,
           password: gPass
         })
@@ -924,6 +949,7 @@ def get_status():
         "bot_state": state,
         "config": {
             "grafana_url": Config.GRAFANA_URL,
+            "grafana_token_set": bool(Config.GRAFANA_API_TOKEN),
             "grafana_username": Config.GRAFANA_USERNAME,
             "grafana_password_set": bool(Config.GRAFANA_PASSWORD),
             "slack_channel_id": Config.SLACK_CHANNEL_ID,
@@ -941,6 +967,11 @@ def update_settings():
 
     if "GRAFANA_URL" in data:
         updates["GRAFANA_URL"] = str(data["GRAFANA_URL"]).strip()
+
+    if "GRAFANA_API_TOKEN" in data:
+        val = str(data["GRAFANA_API_TOKEN"]).strip()
+        if not val.startswith("••••"):
+            updates["GRAFANA_API_TOKEN"] = val
 
     if "GRAFANA_USERNAME" in data:
         updates["GRAFANA_USERNAME"] = str(data["GRAFANA_USERNAME"]).strip()
@@ -967,7 +998,7 @@ def update_settings():
 
     if updates:
         Config.save_settings(updates)
-        bot_log(f"💾 Settings saved to .env (User: {Config.GRAFANA_USERNAME or 'None'})")
+        bot_log(f"💾 Settings saved to .env (Token configured: {bool(Config.GRAFANA_API_TOKEN)})")
 
     return jsonify({"success": True, "message": "Settings saved successfully"})
 
@@ -979,6 +1010,10 @@ def preview_capture():
     if not url:
         return jsonify({"success": False, "error": "No Grafana URL provided."}), 400
 
+    token = data.get("token")
+    if token and token.startswith("••••"):
+        token = None
+
     username = data.get("username")
     password = data.get("password")
     if password and password.startswith("••••"):
@@ -989,7 +1024,7 @@ def preview_capture():
         capture = GrafanaCapture()
         preview_filename = f"preview_{int(time.time())}.png"
         preview_path = os.path.join(tempfile.gettempdir(), preview_filename)
-        capture.capture_screenshot(target_url=url, output_path=preview_path, username=username, password=password)
+        capture.capture_screenshot(target_url=url, output_path=preview_path, username=username, password=password, token=token)
         size_kb = os.path.getsize(preview_path) / 1024
 
         return jsonify({
