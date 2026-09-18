@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  grafana-slack-bot:
+    build: .
+    container_name: grafana-slack-bot
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./.env:/app/.env
+    environment:
+      - PYTHONUNBUFFERED=1
