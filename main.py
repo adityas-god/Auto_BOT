@@ -140,27 +140,15 @@ class GrafanaCapture:
     def _prepare_url(self, raw_url):
         if not raw_url:
             return ""
-        try:
-            parsed = urlparse(raw_url)
-            query = parse_qs(parsed.query)
-
-            if "/d-solo/" not in parsed.path and "kiosk" not in query:
-                query["kiosk"] = ["tv"]
-
-            if "theme" not in query:
-                query["theme"] = ["dark"]
-
-            new_query = urlencode(query, doseq=True)
-            return urlunparse((
-                parsed.scheme,
-                parsed.netloc,
-                parsed.path,
-                parsed.params,
-                new_query,
-                parsed.fragment
-            ))
-        except Exception:
-            return raw_url
+        url = raw_url.strip()
+        # Non-destructively append kiosk & theme without re-encoding existing variables ($__all, etc.)
+        if "/d-solo/" not in url and "kiosk" not in url:
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}kiosk=tv"
+        if "theme=" not in url:
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}theme=dark"
+        return url
 
     def capture_screenshot(self, target_url=None, output_path=None, username=None, password=None, token=None, cookie=None):
         url_to_capture = target_url or self.cfg.GRAFANA_URL
@@ -345,37 +333,55 @@ class GrafanaCapture:
 
                 bot_log(f"⏳ Waiting for dashboard queries and graphs to finish rendering...")
                 try:
-                    page.wait_for_load_state("networkidle", timeout=15000)
+                    page.wait_for_load_state("networkidle", timeout=12000)
                 except Exception:
                     pass
 
                 # Wait for any "Loading ..." indicator or spinner to disappear
                 try:
-                    page.wait_for_selector("text=/Loading/i, .panel-loading, .loading-bar", state="hidden", timeout=15000)
+                    page.wait_for_selector("text=/Loading/i, .panel-loading, .loading-bar", state="hidden", timeout=10000)
                 except Exception:
                     pass
 
-                # Wait for actual dashboard panels or content grid to mount
+                # Wait for actual dashboard panels, panel-106, or content grid to mount
                 try:
-                    page.wait_for_selector(".react-grid-layout, .panel-content, [data-testid*='panel'], .dashboard-container, table", state="visible", timeout=15000)
+                    page.wait_for_selector(".react-grid-layout, .panel-content, [data-testid*='panel'], .dashboard-container, .panel-container, [id*='panel'], table", state="visible", timeout=10000)
                 except Exception:
                     pass
 
                 time.sleep(self.cfg.PAGE_LOAD_WAIT_SECONDS)
 
-                page.add_style_tag(content="""
-                    .grafana-tooltip, .portal-wrapper { display: none !important; }
-                    body { overflow: hidden !important; }
-                """)
+                # Ensure page has settled after any client-side route redirects
+                try:
+                    page.wait_for_load_state("domcontentloaded", timeout=5000)
+                except Exception:
+                    pass
 
-                if "/d-solo/" in prepared_url:
-                    panel = page.locator(".panel-container, .react-grid-item, .panel-content").first
-                    if panel.count() > 0:
-                        panel.screenshot(path=output_path)
+                try:
+                    page.add_style_tag(content="""
+                        .grafana-tooltip, .portal-wrapper { display: none !important; }
+                        body { overflow: hidden !important; }
+                    """)
+                except Exception:
+                    pass
+
+                try:
+                    if "/d-solo/" in prepared_url or "viewPanel=" in prepared_url:
+                        panel = page.locator(".panel-container, .react-grid-item, .panel-content, [data-testid*='panel']").first
+                        if panel.count() > 0:
+                            panel.screenshot(path=output_path)
+                        else:
+                            page.screenshot(path=output_path, full_page=False)
                     else:
                         page.screenshot(path=output_path, full_page=False)
-                else:
-                    page.screenshot(path=output_path, full_page=False)
+                except Exception as shot_err:
+                    if "Execution context was destroyed" in str(shot_err) or "navigation" in str(shot_err).lower():
+                        bot_log("⚠️ Navigation detected during capture, waiting for page to settle...")
+                        time.sleep(3)
+                        page.wait_for_load_state("domcontentloaded", timeout=10000)
+                        page.screenshot(path=output_path, full_page=False)
+                    else:
+                        raise shot_err
 
                 file_size = os.path.getsize(output_path)
                 bot_log(f"📸 Captured snapshot successfully! ({file_size / 1024:.1f} KB)")
