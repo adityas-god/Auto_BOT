@@ -1,23 +1,37 @@
-# Official Playwright Python image (comes pre-installed with all Ubuntu libraries & fonts)
-FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
+# ==============================================================================
+# STAGE 1: Builder (Dependencies & Package Compilation)
+# ==============================================================================
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+# Install dependencies into /root/.local (isolated from system python)
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+
+# ==============================================================================
+# STAGE 2: Runtime (Minimal Execution Environment)
+# ==============================================================================
+FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy AS runtime
 
 WORKDIR /app
 
-# Install Python requirements
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy only the compiled Python packages from the builder stage
+COPY --from=builder /root/.local /root/.local
+ENV PATH=/root/.local/bin:$PATH
 
-# Install Playwright Chromium headless browser
+# Install headless Chromium browser binaries for Playwright
 RUN playwright install chromium
 
-# Copy bot application
+# Copy application source code
 COPY main.py .
 
-# Expose port for Web UI Management Dashboard
+# Expose Web UI management port
 EXPOSE 5000
 
-# Set unbuffered output for real-time Docker logs
+# Ensure logs stream in real-time
 ENV PYTHONUNBUFFERED=1
 
-# Run the bot daemon and Web UI
+# Start the bot daemon & Web UI
 CMD ["python", "-u", "main.py"]
