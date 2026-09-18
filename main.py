@@ -189,7 +189,9 @@ class GrafanaCapture:
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
                     "--hide-scrollbars",
-                    "--mute-audio"
+                    "--mute-audio",
+                    "--ignore-certificate-errors",
+                    "--disable-web-security"
                 ]
             )
 
@@ -199,13 +201,18 @@ class GrafanaCapture:
                     "height": self.cfg.VIEWPORT_HEIGHT
                 },
                 device_scale_factor=1.0,
-                extra_http_headers=extra_headers
+                extra_http_headers=extra_headers,
+                ignore_https_errors=True
             )
 
             page = context.new_page()
 
             try:
-                page.goto(prepared_url, wait_until="domcontentloaded", timeout=45000)
+                try:
+                    page.goto(prepared_url, wait_until="commit", timeout=30000)
+                    page.wait_for_load_state("domcontentloaded", timeout=15000)
+                except Exception as nav_err:
+                    bot_log(f"⚠️ Navigation warning: {nav_err}")
 
                 # Wait up to 6 seconds for either login inputs or dashboard elements to show
                 try:
