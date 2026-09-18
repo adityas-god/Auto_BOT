@@ -46,6 +46,7 @@ class Config:
     SLACK_CHANNEL_ID = os.getenv("SLACK_CHANNEL_ID", "").strip()
     SLACK_MESSAGE = os.getenv("SLACK_MESSAGE", "📊 *Grafana Snapshot Alert* - {datetime}").strip()
     SCHEDULE_INTERVAL_MINUTES = int(os.getenv("SCHEDULE_INTERVAL_MINUTES", "30"))
+    BOT_PAUSED = os.getenv("BOT_PAUSED", "false").strip().lower() == "true"
 
     TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata").strip()
     VIEWPORT_WIDTH = 1920
@@ -65,6 +66,7 @@ class Config:
         cls.SLACK_CHANNEL_ID = os.getenv("SLACK_CHANNEL_ID", "").strip()
         cls.SLACK_MESSAGE = os.getenv("SLACK_MESSAGE", "📊 *Grafana Snapshot Alert* - {datetime}").strip()
         cls.SCHEDULE_INTERVAL_MINUTES = int(os.getenv("SCHEDULE_INTERVAL_MINUTES", "30"))
+        cls.BOT_PAUSED = os.getenv("BOT_PAUSED", "false").strip().lower() == "true"
         cls.TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata").strip()
         cls.WEB_PORT = int(os.getenv("WEB_PORT", "5000"))
 
@@ -396,7 +398,12 @@ class SlackUploader:
 # LOGS & STATE
 # ==============================================================================
 LOG_BUFFER = deque(maxlen=150)
-BOT_STATE = {"is_running": False, "last_run_time": None, "last_status": "Idle"}
+BOT_STATE = {
+    "is_running": False,
+    "is_paused": Config.BOT_PAUSED,
+    "last_run_time": None,
+    "last_status": "Paused" if Config.BOT_PAUSED else "Idle"
+}
 _state_lock = threading.Lock()
 
 
@@ -612,9 +619,14 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
         <p>Headless Slack Monitoring</p>
       </div>
     </div>
-    <div class="status-badge">
-      <span class="status-dot"></span>
-      <span id="status-text">System Idle</span>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <button type="button" class="btn" id="btn-pause-toggle" onclick="togglePause()" style="padding: 6px 14px; font-size: 13px; font-weight: 600; border-radius: 9999px;">
+        ⏸ Pause Scheduler
+      </button>
+      <div class="status-badge">
+        <span class="status-dot"></span>
+        <span id="status-text">System Idle</span>
+      </div>
     </div>
   </div>
 
@@ -760,14 +772,43 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
     if (!state) return;
     const text = document.getElementById("status-text");
     const dot = document.querySelector(".status-dot");
-    if (state.is_running) {
-      text.innerText = "Capturing...";
-      dot.style.background = "#06b6d4";
-      dot.style.boxShadow = "0 0 8px #06b6d4";
+    const pauseBtn = document.getElementById("btn-pause-toggle");
+
+    if (state.is_paused) {
+      pauseBtn.innerHTML = "▶ Resume Scheduler";
+      pauseBtn.style.background = "rgba(16, 185, 129, 0.15)";
+      pauseBtn.style.color = "var(--accent-emerald)";
+      pauseBtn.style.border = "1px solid rgba(16, 185, 129, 0.4)";
+      text.innerText = "Scheduler Paused ⏸️";
+      dot.style.background = "#f59e0b";
+      dot.style.boxShadow = "0 0 8px #f59e0b";
     } else {
-      text.innerText = state.last_status === "Success" ? `Idle (Last: ${state.last_run_time || 'OK'})` : `Status: ${state.last_status}`;
-      dot.style.background = "var(--accent-emerald)";
-      dot.style.boxShadow = "0 0 8px var(--accent-emerald)";
+      pauseBtn.innerHTML = "⏸ Pause Scheduler";
+      pauseBtn.style.background = "rgba(245, 158, 11, 0.12)";
+      pauseBtn.style.color = "#f59e0b";
+      pauseBtn.style.border = "1px solid rgba(245, 158, 11, 0.3)";
+      if (state.is_running) {
+        text.innerText = "Capturing...";
+        dot.style.background = "#06b6d4";
+        dot.style.boxShadow = "0 0 8px #06b6d4";
+      } else {
+        text.innerText = state.last_status === "Success" ? `Idle (Last: ${state.last_run_time || 'OK'})` : `Status: ${state.last_status}`;
+        dot.style.background = "var(--accent-emerald)";
+        dot.style.boxShadow = "0 0 8px var(--accent-emerald)";
+      }
+    }
+  }
+
+  async function togglePause() {
+    try {
+      const res = await fetch("/api/toggle-pause", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.is_paused ? "⏸️ Automatic captures PAUSED" : "▶️ Automatic captures RESUMED");
+        poll();
+      }
+    } catch(e) {
+      showToast("❌ Failed to toggle pause", true);
     }
   }
 
@@ -1053,6 +1094,19 @@ def get_preview_image(filename):
     return "Not found", 404
 
 
+@app.route("/api/toggle-pause", methods=["POST"])
+def toggle_pause():
+    with _state_lock:
+        BOT_STATE["is_paused"] = not BOT_STATE.get("is_paused", False)
+        is_paused = BOT_STATE["is_paused"]
+        BOT_STATE["last_status"] = "Paused" if is_paused else "Idle"
+
+    Config.save_settings({"BOT_PAUSED": "true" if is_paused else "false"})
+    status_str = "PAUSED ⏸️" if is_paused else "RESUMED ▶️"
+    bot_log(f"🔄 Automatic scheduler is now {status_str}")
+    return jsonify({"success": True, "is_paused": is_paused})
+
+
 @app.route("/api/trigger", methods=["POST"])
 def trigger_cycle():
     if BOT_STATE["is_running"]:
@@ -1094,15 +1148,27 @@ def run_web_server():
 # SCHEDULER & ENTRYPOINT
 # ==============================================================================
 def scheduler_loop():
+    time.sleep(3)
     while True:
-        try:
-            execute_cycle()
-        except Exception as e:
-            bot_log(f"⚠️ Scheduler error: {e}")
+        with _state_lock:
+            paused = BOT_STATE.get("is_paused", False)
 
-        interval_sec = max(60, Config.SCHEDULE_INTERVAL_MINUTES * 60)
-        bot_log(f"⏳ Sleeping for {Config.SCHEDULE_INTERVAL_MINUTES} minute(s)...")
-        time.sleep(interval_sec)
+        if not paused:
+            try:
+                execute_cycle()
+            except Exception as e:
+                bot_log(f"⚠️ Scheduler error: {e}")
+
+            interval_sec = max(60, Config.SCHEDULE_INTERVAL_MINUTES * 60)
+            bot_log(f"⏳ Next scheduled capture in {Config.SCHEDULE_INTERVAL_MINUTES} minute(s)...")
+
+            for _ in range(int(interval_sec / 2)):
+                with _state_lock:
+                    if BOT_STATE.get("is_paused", False):
+                        break
+                time.sleep(2)
+        else:
+            time.sleep(2)
 
 
 def main():
