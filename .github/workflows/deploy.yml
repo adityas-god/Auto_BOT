@@ -1,0 +1,33 @@
+name: Deploy Headless Bot to Cloud VM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Cloud VM over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            echo "🚀 Updating Headless Bot on Cloud VM..."
+            cd "/AUTO BOT"
+
+            # Pull latest changes from GitHub
+            git pull origin main
+
+            # Rebuild and restart the Docker container
+            docker compose up -d --build
+
+            echo "✅ Deployment complete! Container status:"
+            docker ps

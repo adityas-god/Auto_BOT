@@ -933,16 +933,43 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
   }
 
   async function saveLinks() {
+    const items = document.querySelectorAll(".link-item");
+    const collected = [];
+    items.forEach((item, idx) => {
+      const name = (item.querySelector(".link-name-input").value || "").trim() || `Dashboard ${idx + 1}`;
+      const url = (item.querySelector(".link-url-input").value || "").trim();
+      const enabled = item.querySelector("input[type='checkbox']").checked;
+      collected.push({
+        id: (links[idx] && links[idx].id) || String(idx + 1),
+        name: name,
+        url: url,
+        enabled: enabled
+      });
+    });
+
+    const hasValid = collected.some(l => l.url.length > 0 && l.enabled);
+    if (!hasValid) {
+      showToast("❌ Please type a valid Grafana URL in the box before saving!", true);
+      return;
+    }
+
+    links = collected;
     try {
       const res = await fetch("/api/links", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ links })
+        body: JSON.stringify({ links: collected })
       });
       const data = await res.json();
-      if (data.success) { showToast("✅ Links saved & synced to .env!"); fetchLogs(); }
-      else showToast("❌ " + (data.error || "Failed"), true);
-    } catch (e) { showToast("❌ Error saving links", true); }
+      if (data.success) {
+        showToast("✅ Links saved & synced to .env!");
+        fetchLogs();
+      } else {
+        showToast("❌ " + (data.error || "Failed"), true);
+      }
+    } catch (e) {
+      showToast("❌ Error saving links", true);
+    }
   }
 
   async function loadSettings() {

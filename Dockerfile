@@ -1,27 +1,12 @@
-# ==============================================================================
-# STAGE 1: Builder (Dependencies & Package Compilation)
-# ==============================================================================
-FROM python:3.11-slim AS builder
-
-WORKDIR /build
-
-# Install dependencies into /root/.local (isolated from system python)
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
-
-
-# ==============================================================================
-# STAGE 2: Runtime (Minimal Execution Environment)
-# ==============================================================================
-FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy AS runtime
+FROM mcr.microsoft.com/playwright/python:v1.40.0-jammy
 
 WORKDIR /app
 
-# Copy only the compiled Python packages from the builder stage
-COPY --from=builder /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
+# Install Python requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install headless Chromium browser binaries for Playwright
+# Install Playwright Chromium headless browser
 RUN playwright install chromium
 
 # Copy application source code
