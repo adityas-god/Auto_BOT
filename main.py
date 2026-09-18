@@ -239,18 +239,24 @@ class GrafanaCapture:
                         time.sleep(3)
 
                         # Skip password change prompt if present
-                        skip_btn = page.locator("button:has-text('Skip'), a:has-text('Skip'), text='Skip'").first
-                        if skip_btn.count() > 0 and skip_btn.is_visible():
-                            bot_log("⏩ Skipping password change prompt...")
-                            skip_btn.click()
-                            time.sleep(2)
+                        try:
+                            skip_btn = page.locator("button:has-text('Skip'), a:has-text('Skip')").first
+                            if skip_btn.count() > 0:
+                                bot_log("⏩ Skipping password change prompt...")
+                                skip_btn.click()
+                                time.sleep(2)
+                        except Exception:
+                            pass
 
                         # Check if still on login page
-                        if "/login" in page.url or page.locator("input[type='password']").is_visible():
-                            bot_log("⚠️ Still on login screen. Please check if username/password are correct.")
-                        elif prepared_url not in page.url:
-                            bot_log(f"🌐 Redirecting to target dashboard: {prepared_url}")
-                            page.goto(prepared_url, wait_until="domcontentloaded", timeout=30000)
+                        try:
+                            if "/login" in page.url:
+                                bot_log("⚠️ Still on login screen. Please check if username/password are correct.")
+                            elif prepared_url not in page.url:
+                                bot_log(f"🌐 Redirecting to target dashboard: {prepared_url}")
+                                page.goto(prepared_url, wait_until="domcontentloaded", timeout=30000)
+                        except Exception:
+                            pass
 
                 bot_log(f"⏳ Waiting {self.cfg.PAGE_LOAD_WAIT_SECONDS}s for graphs & queries to render...")
                 try:
