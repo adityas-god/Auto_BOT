@@ -16,7 +16,7 @@ import threading
 import argparse
 from collections import deque
 from datetime import datetime
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+from urllib.parse import urlparse
 
 import pytz
 import requests
@@ -26,12 +26,33 @@ from playwright.sync_api import sync_playwright
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
+if os.path.isdir(ENV_PATH):
+    ENV_PATH = os.path.join(ENV_PATH, "settings.env")
 
 if not os.path.exists(ENV_PATH):
-    with open(ENV_PATH, "w", encoding="utf-8") as f:
-        f.write("# Headless Bot Configuration\n")
+    try:
+        example_path = os.path.join(BASE_DIR, ".env.example")
+        if os.path.exists(example_path) and os.path.isfile(example_path):
+            with open(example_path, "r", encoding="utf-8") as src, open(ENV_PATH, "w", encoding="utf-8") as dst:
+                dst.write(src.read())
+        else:
+            with open(ENV_PATH, "w", encoding="utf-8") as f:
+                f.write("# Headless Bot Configuration\n")
+    except Exception:
+        pass
 
-load_dotenv(dotenv_path=ENV_PATH, override=True)
+if os.path.exists(ENV_PATH) and os.path.isfile(ENV_PATH):
+    load_dotenv(dotenv_path=ENV_PATH, override=True)
+
+
+def safe_int(val, default):
+    try:
+        if val is None:
+            return default
+        s = str(val).strip()
+        return int(s) if s else default
+    except (ValueError, TypeError):
+        return default
 
 
 # ==============================================================================
@@ -39,51 +60,80 @@ load_dotenv(dotenv_path=ENV_PATH, override=True)
 # ==============================================================================
 class Config:
     GRAFANA_URL = os.getenv("GRAFANA_URL", "").strip()
+    GRAFANA_URLS = os.getenv("GRAFANA_URLS", "").strip()
     GRAFANA_API_TOKEN = os.getenv("GRAFANA_API_TOKEN", "").strip()
     GRAFANA_COOKIE = os.getenv("GRAFANA_COOKIE", "").strip()
     GRAFANA_USERNAME = os.getenv("GRAFANA_USERNAME", "").strip()
     GRAFANA_PASSWORD = os.getenv("GRAFANA_PASSWORD", "").strip()
     SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "").strip()
     SLACK_CHANNEL_ID = os.getenv("SLACK_CHANNEL_ID", "").strip()
-    SLACK_MESSAGE = os.getenv("SLACK_MESSAGE", "📊 *Grafana Snapshot Alert* - {datetime}").strip()
-    SCHEDULE_INTERVAL_MINUTES = int(os.getenv("SCHEDULE_INTERVAL_MINUTES", "30"))
+    SLACK_THREAD_TS = os.getenv("SLACK_THREAD_TS", "").strip()
+    SLACK_MESSAGE = (os.getenv("SLACK_MESSAGE") or os.getenv("SLACK_MESSAGE_TEMPLATE") or "📊 *Grafana Snapshot Alert* - {datetime}").strip()
+    SCHEDULE_INTERVAL_MINUTES = safe_int(os.getenv("SCHEDULE_INTERVAL_MINUTES"), 30)
     BOT_PAUSED = os.getenv("BOT_PAUSED", "false").strip().lower() == "true"
 
-    TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata").strip()
-    VIEWPORT_WIDTH = 1920
-    VIEWPORT_HEIGHT = 1080
-    PAGE_LOAD_WAIT_SECONDS = 8
-    WEB_HOST = "0.0.0.0"
-    WEB_PORT = int(os.getenv("WEB_PORT", "5000"))
+    TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata").strip() or "Asia/Kolkata"
+    VIEWPORT_WIDTH = safe_int(os.getenv("VIEWPORT_WIDTH"), 1920)
+    VIEWPORT_HEIGHT = safe_int(os.getenv("VIEWPORT_HEIGHT"), 1080)
+    PAGE_LOAD_WAIT_SECONDS = safe_int(os.getenv("PAGE_LOAD_WAIT_SECONDS"), 8)
+    GRAFANA_THEME = os.getenv("GRAFANA_THEME", "dark").strip() or "dark"
+    WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0").strip() or "0.0.0.0"
+    WEB_PORT = safe_int(os.getenv("WEB_PORT"), 5000)
 
     @classmethod
     def reload(cls):
-        load_dotenv(dotenv_path=ENV_PATH, override=True)
+        if os.path.exists(ENV_PATH) and os.path.isfile(ENV_PATH):
+            load_dotenv(dotenv_path=ENV_PATH, override=True)
         cls.GRAFANA_URL = os.getenv("GRAFANA_URL", "").strip()
+        cls.GRAFANA_URLS = os.getenv("GRAFANA_URLS", "").strip()
         cls.GRAFANA_API_TOKEN = os.getenv("GRAFANA_API_TOKEN", "").strip()
         cls.GRAFANA_COOKIE = os.getenv("GRAFANA_COOKIE", "").strip()
         cls.GRAFANA_USERNAME = os.getenv("GRAFANA_USERNAME", "").strip()
         cls.GRAFANA_PASSWORD = os.getenv("GRAFANA_PASSWORD", "").strip()
         cls.SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN", "").strip()
         cls.SLACK_CHANNEL_ID = os.getenv("SLACK_CHANNEL_ID", "").strip()
-        cls.SLACK_MESSAGE = os.getenv("SLACK_MESSAGE", "📊 *Grafana Snapshot Alert* - {datetime}").strip()
-        cls.SCHEDULE_INTERVAL_MINUTES = int(os.getenv("SCHEDULE_INTERVAL_MINUTES", "30"))
+        cls.SLACK_THREAD_TS = os.getenv("SLACK_THREAD_TS", "").strip()
+        cls.SLACK_MESSAGE = (os.getenv("SLACK_MESSAGE") or os.getenv("SLACK_MESSAGE_TEMPLATE") or "📊 *Grafana Snapshot Alert* - {datetime}").strip()
+        cls.SCHEDULE_INTERVAL_MINUTES = safe_int(os.getenv("SCHEDULE_INTERVAL_MINUTES"), 30)
         cls.BOT_PAUSED = os.getenv("BOT_PAUSED", "false").strip().lower() == "true"
-        cls.TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata").strip()
-        cls.WEB_PORT = int(os.getenv("WEB_PORT", "5000"))
+        cls.TIMEZONE = os.getenv("TIMEZONE", "Asia/Kolkata").strip() or "Asia/Kolkata"
+        cls.VIEWPORT_WIDTH = safe_int(os.getenv("VIEWPORT_WIDTH"), 1920)
+        cls.VIEWPORT_HEIGHT = safe_int(os.getenv("VIEWPORT_HEIGHT"), 1080)
+        cls.PAGE_LOAD_WAIT_SECONDS = safe_int(os.getenv("PAGE_LOAD_WAIT_SECONDS"), 8)
+        cls.GRAFANA_THEME = os.getenv("GRAFANA_THEME", "dark").strip() or "dark"
+        cls.WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0").strip() or "0.0.0.0"
+        cls.WEB_PORT = safe_int(os.getenv("WEB_PORT"), 5000)
+
+    @classmethod
+    def get_target_urls(cls):
+        urls = []
+        raw_list = []
+        if cls.GRAFANA_URL:
+            raw_list.extend(cls.GRAFANA_URL.replace("\n", ",").split(","))
+        if cls.GRAFANA_URLS:
+            raw_list.extend(cls.GRAFANA_URLS.replace("\n", ",").split(","))
+        for u in raw_list:
+            clean = u.strip()
+            if clean and clean not in urls:
+                urls.append(clean)
+        return urls
 
     @classmethod
     def parse_channel_id(cls, raw_input):
         val = raw_input.strip()
         if "/archives/" in val:
-            parts = val.rstrip("/").split("/")
-            return parts[-1]
+            after = val.split("/archives/", 1)[1].split("?")[0].strip("/")
+            return after.split("/")[0]
         return val
 
     @classmethod
     def save_settings(cls, settings_dict):
+        # Synchronize SLACK_MESSAGE and SLACK_MESSAGE_TEMPLATE
+        if "SLACK_MESSAGE" in settings_dict:
+            settings_dict["SLACK_MESSAGE_TEMPLATE"] = settings_dict["SLACK_MESSAGE"]
+
         lines = []
-        if os.path.exists(ENV_PATH):
+        if os.path.exists(ENV_PATH) and os.path.isfile(ENV_PATH):
             with open(ENV_PATH, "r", encoding="utf-8") as f:
                 lines = f.readlines()
 
@@ -92,7 +142,8 @@ class Config:
         for line in lines:
             matched = False
             for k, v in settings_dict.items():
-                if line.strip().startswith(f"{k}=") or line.strip().startswith(f"{k} ="):
+                stripped = line.strip()
+                if stripped.startswith(f"{k}=") or stripped.startswith(f"{k} ="):
                     new_lines.append(f"{k}={v}\n")
                     updated.add(k)
                     matched = True
@@ -111,7 +162,7 @@ class Config:
         return True
 
     @classmethod
-    def get_formatted_message(cls):
+    def get_formatted_message(cls, target_url=None, title=None):
         try:
             tz = pytz.timezone(cls.TIMEZONE)
             now = datetime.now(tz)
@@ -121,12 +172,16 @@ class Config:
         formatted_datetime = now.strftime("%Y-%m-%d %I:%M:%S %p")
         formatted_date = now.strftime("%Y-%m-%d")
         formatted_time = now.strftime("%I:%M:%S %p")
+        active_url = target_url or cls.GRAFANA_URL
+        active_title = title or "Grafana Snapshot"
 
         msg = cls.SLACK_MESSAGE
+        msg = msg.replace("\\n", "\n")
         msg = msg.replace("{datetime}", formatted_datetime)
         msg = msg.replace("{date}", formatted_date)
         msg = msg.replace("{time}", formatted_time)
-        msg = msg.replace("{grafana_url}", cls.GRAFANA_URL)
+        msg = msg.replace("{grafana_url}", active_url)
+        msg = msg.replace("{title}", active_title)
         return msg
 
 
@@ -141,14 +196,20 @@ class GrafanaCapture:
         if not raw_url:
             return ""
         url = raw_url.strip()
+        frag = ""
+        if "#" in url:
+            url, frag = url.split("#", 1)
+            frag = f"#{frag}"
+
         # Non-destructively append kiosk & theme without re-encoding existing variables ($__all, etc.)
         if "/d-solo/" not in url and "kiosk" not in url:
             sep = "&" if "?" in url else "?"
             url = f"{url}{sep}kiosk=tv"
         if "theme=" not in url:
+            theme_val = getattr(self.cfg, "GRAFANA_THEME", "dark") or "dark"
             sep = "&" if "?" in url else "?"
-            url = f"{url}{sep}theme=dark"
-        return url
+            url = f"{url}{sep}theme={theme_val}"
+        return f"{url}{frag}"
 
     def capture_screenshot(self, target_url=None, output_path=None, username=None, password=None, token=None, cookie=None):
         url_to_capture = target_url or self.cfg.GRAFANA_URL
@@ -177,9 +238,8 @@ class GrafanaCapture:
             extra_headers["Authorization"] = f"Bearer {auth_token}"
             bot_log("🔐 Authenticating with Grafana Service Account Token (Bearer)")
 
-        if auth_cookie:
-            extra_headers["Cookie"] = auth_cookie.strip()
-            bot_log("🍪 Authenticating with Session Cookie")
+        parsed_origin = urlparse(prepared_url)
+        origin_url = f"{parsed_origin.scheme}://{parsed_origin.netloc}"
 
         with sync_playwright() as p:
             browser = p.chromium.launch(
@@ -199,8 +259,8 @@ class GrafanaCapture:
 
             context = browser.new_context(
                 viewport={
-                    "width": self.cfg.VIEWPORT_WIDTH,
-                    "height": self.cfg.VIEWPORT_HEIGHT
+                    "width": int(self.cfg.VIEWPORT_WIDTH),
+                    "height": int(self.cfg.VIEWPORT_HEIGHT)
                 },
                 device_scale_factor=1.0,
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -208,7 +268,7 @@ class GrafanaCapture:
                 ignore_https_errors=True
             )
 
-            # Inject cookies into context for client-side JS & subsequent requests
+            # Inject cookies into context with path="/" so all subpaths (/api/, /d/, etc.) receive them
             if auth_cookie:
                 try:
                     cookies_to_add = []
@@ -219,19 +279,21 @@ class GrafanaCapture:
                             if isinstance(parsed_json, list):
                                 for c in parsed_json:
                                     if isinstance(c, dict) and "name" in c and "value" in c:
-                                        entry = {"name": str(c["name"]), "value": str(c["value"])}
-                                        if "domain" in c:
-                                            entry["domain"] = c["domain"]
-                                        elif "url" in c:
-                                            entry["url"] = c["url"]
-                                        else:
-                                            entry["url"] = prepared_url
-                                        if "path" in c:
-                                            entry["path"] = c["path"]
+                                        entry = {
+                                            "name": str(c["name"]).strip(),
+                                            "value": str(c["value"]).strip(),
+                                            "url": origin_url,
+                                            "path": "/"
+                                        }
                                         cookies_to_add.append(entry)
                             elif isinstance(parsed_json, dict):
                                 for k, v in parsed_json.items():
-                                    cookies_to_add.append({"name": str(k), "value": str(v), "url": prepared_url})
+                                    cookies_to_add.append({
+                                        "name": str(k).strip(),
+                                        "value": str(v).strip(),
+                                        "url": origin_url,
+                                        "path": "/"
+                                    })
                         except Exception:
                             pass
 
@@ -242,13 +304,25 @@ class GrafanaCapture:
                                 continue
                             if "=" in part:
                                 cname, cval = part.split("=", 1)
-                                cookies_to_add.append({"name": cname.strip(), "value": cval.strip(), "url": prepared_url})
+                                cname = cname.strip()
+                                cval = cval.strip().strip('"')
+                                cookies_to_add.append({
+                                    "name": cname,
+                                    "value": cval,
+                                    "url": origin_url,
+                                    "path": "/"
+                                })
                             else:
-                                cookies_to_add.append({"name": "grafana_session", "value": part.strip(), "url": prepared_url})
+                                cookies_to_add.append({
+                                    "name": "grafana_session",
+                                    "value": part.strip().strip('"'),
+                                    "url": origin_url,
+                                    "path": "/"
+                                })
 
                     if cookies_to_add:
                         context.add_cookies(cookies_to_add)
-                        bot_log(f"🍪 Injected {len(cookies_to_add)} session cookie(s) into browser context")
+                        bot_log(f"🍪 Injected {len(cookies_to_add)} session cookie(s) into browser context for {origin_url}")
                 except Exception as cookie_err:
                     bot_log(f"⚠️ Warning adding cookies to context: {cookie_err}")
 
@@ -256,19 +330,18 @@ class GrafanaCapture:
 
             try:
                 try:
-                    response = page.goto(prepared_url, wait_until="commit", timeout=15000)
+                    response = page.goto(prepared_url, wait_until="domcontentloaded", timeout=30000)
                     if response and response.status >= 400:
                         bot_log(f"⚠️ Server returned HTTP status {response.status}")
-                    page.wait_for_load_state("domcontentloaded", timeout=10000)
                 except Exception as nav_err:
                     err_str = str(nav_err)
                     if "ERR_CONNECTION_REFUSED" in err_str:
                         raise ValueError(f"Connection refused at '{prepared_url}'. Verify the service is running and accessible.")
                     if "Timeout" in err_str:
-                        raise TimeoutError(f"Connection timed out (15s) reaching '{prepared_url}'. The VM network/firewall cannot reach this server.")
+                        raise TimeoutError(f"Connection timed out (30s) reaching '{prepared_url}'. The VM network/firewall cannot reach this server.")
                     raise RuntimeError(f"Navigation failed: {nav_err}")
 
-                # Wait up to 6 seconds for either login inputs or dashboard elements to show
+                # Wait up to 6 seconds for login inputs or dashboard elements
                 try:
                     page.wait_for_selector(
                         "input[type='password'], input[name='user'], input[placeholder*='username' i], input[placeholder*='email' i], button:has-text('Log in'), .react-grid-layout, .dashboard-container, [data-testid='dashboard-content']",
@@ -278,8 +351,8 @@ class GrafanaCapture:
                     pass
 
                 # Check if we landed on a login screen
-                has_pass_input = page.locator("input[type='password'], input[name='password']").count() > 0
-                has_login_btn = page.locator("button:has-text('Log in'), button:has-text('Login'), button[type='submit']").count() > 0
+                has_pass_input = page.locator("input[type='password'], input[name='password'], input[placeholder*='password' i]").count() > 0
+                has_login_btn = page.locator("button:has-text('Log in'), button:has-text('Login'), button:has-text('Sign in'), button[type='submit']").count() > 0
                 is_login = "/login" in page.url or (has_pass_input and has_login_btn)
 
                 if is_login:
@@ -290,17 +363,17 @@ class GrafanaCapture:
                             bot_log("⚠️ Grafana login screen detected, but Username / Password / Cookie are not configured in settings!")
                     else:
                         bot_log(f"🔑 Detected login screen. Authenticating as '{user}'...")
-                        user_elem = page.locator("input[name='user'], input[id='login-view-username'], input[placeholder*='email' i], input[placeholder*='username' i], input[type='text']").first
+                        user_elem = page.locator("input[name='user'], input[id='login-view-username'], input[placeholder*='email' i], input[placeholder*='username' i], input[data-testid*='Username'], input[type='text']").first
                         if user_elem.count() > 0:
                             user_elem.fill(user)
                         time.sleep(0.5)
 
-                        pass_elem = page.locator("input[name='password'], input[id='login-view-password'], input[placeholder*='password' i], input[type='password']").first
+                        pass_elem = page.locator("input[name='password'], input[id='login-view-password'], input[placeholder*='password' i], input[data-testid*='Password'], input[type='password']").first
                         if pass_elem.count() > 0:
                             pass_elem.fill(pwd)
                         time.sleep(0.5)
 
-                        submit_elem = page.locator("button[type='submit'], button:has-text('Log in'), button:has-text('Login')").first
+                        submit_elem = page.locator("button[type='submit'], button:has-text('Log in'), button:has-text('Login'), button:has-text('Sign in')").first
                         if submit_elem.count() > 0:
                             submit_elem.click()
                             bot_log("⏳ Clicked 'Log in', waiting for session...")
@@ -321,29 +394,32 @@ class GrafanaCapture:
                         except Exception:
                             pass
 
-                        # Check if still on login page
+                        # Check if still on login page or need redirect
                         try:
-                            if "/login" in page.url:
+                            curr_url = page.url
+                            curr_path = urlparse(curr_url).path
+                            prep_path = urlparse(prepared_url).path
+                            if "/login" in curr_path:
                                 bot_log("⚠️ Still on login screen. Please check if username/password are correct.")
-                            elif prepared_url not in page.url:
+                            elif prep_path and prep_path != "/" and prep_path not in curr_path:
                                 bot_log(f"🌐 Redirecting to target dashboard: {prepared_url}")
                                 page.goto(prepared_url, wait_until="domcontentloaded", timeout=30000)
                         except Exception:
                             pass
 
-                bot_log(f"⏳ Waiting for dashboard queries and graphs to finish rendering...")
+                bot_log("⏳ Waiting for dashboard queries and graphs to finish rendering...")
                 try:
                     page.wait_for_load_state("networkidle", timeout=12000)
                 except Exception:
                     pass
 
-                # Wait for any "Loading ..." indicator or spinner to disappear
+                # Wait for any loading spinner to disappear
                 try:
-                    page.wait_for_selector("text=/Loading/i, .panel-loading, .loading-bar", state="hidden", timeout=10000)
+                    page.wait_for_selector(".panel-loading, .loading-bar", state="hidden", timeout=8000)
                 except Exception:
                     pass
 
-                # Wait for actual dashboard panels, panel-106, or content grid to mount
+                # Wait for actual dashboard panels or content grid to mount
                 try:
                     page.wait_for_selector(".react-grid-layout, .panel-content, [data-testid*='panel'], .dashboard-container, .panel-container, [id*='panel'], table", state="visible", timeout=10000)
                 except Exception:
@@ -351,7 +427,7 @@ class GrafanaCapture:
 
                 time.sleep(self.cfg.PAGE_LOAD_WAIT_SECONDS)
 
-                # Ensure page has settled after any client-side route redirects
+                # Ensure page has settled
                 try:
                     page.wait_for_load_state("domcontentloaded", timeout=5000)
                 except Exception:
@@ -365,23 +441,31 @@ class GrafanaCapture:
                 except Exception:
                     pass
 
-                try:
-                    if "/d-solo/" in prepared_url or "viewPanel=" in prepared_url:
+                # Attempt screenshot: solo panel or full viewport
+                shot_taken = False
+                if "/d-solo/" in prepared_url or "viewPanel=" in prepared_url:
+                    try:
                         panel = page.locator(".panel-container, .react-grid-item, .panel-content, [data-testid*='panel']").first
-                        if panel.count() > 0:
+                        if panel.count() > 0 and panel.is_visible():
                             panel.screenshot(path=output_path)
-                        else:
+                            shot_taken = True
+                    except Exception as panel_err:
+                        bot_log(f"⚠️ Solo panel capture fallback: {panel_err}")
+
+                if not shot_taken:
+                    try:
+                        page.screenshot(path=output_path, full_page=False)
+                    except Exception as shot_err:
+                        if "Execution context was destroyed" in str(shot_err) or "navigation" in str(shot_err).lower():
+                            bot_log("⚠️ Navigation detected during capture, waiting for page to settle...")
+                            time.sleep(3)
+                            page.wait_for_load_state("domcontentloaded", timeout=10000)
                             page.screenshot(path=output_path, full_page=False)
-                    else:
-                        page.screenshot(path=output_path, full_page=False)
-                except Exception as shot_err:
-                    if "Execution context was destroyed" in str(shot_err) or "navigation" in str(shot_err).lower():
-                        bot_log("⚠️ Navigation detected during capture, waiting for page to settle...")
-                        time.sleep(3)
-                        page.wait_for_load_state("domcontentloaded", timeout=10000)
-                        page.screenshot(path=output_path, full_page=False)
-                    else:
-                        raise shot_err
+                        else:
+                            raise shot_err
+
+                if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                    raise RuntimeError("Screenshot capture failed: output image was not created.")
 
                 file_size = os.path.getsize(output_path)
                 bot_log(f"📸 Captured snapshot successfully! ({file_size / 1024:.1f} KB)")
@@ -402,19 +486,30 @@ class SlackUploader:
         self.headers = {"Authorization": f"Bearer {self.token}"}
 
     def test_auth(self):
+        if not self.token:
+            return False, "Slack Bot Token is not configured. Please enter your xoxb-... token."
         url = "https://slack.com/api/auth.test"
         try:
             resp = requests.post(url, headers=self.headers, timeout=15)
             data = resp.json()
             if data.get("ok"):
                 return True, data
-            return False, data.get("error", "Unknown auth error")
+            err = data.get("error", "Unknown auth error")
+            if err == "invalid_auth":
+                return False, "Invalid Slack bot token. Ensure it begins with 'xoxb-' and is copied accurately."
+            return False, f"Slack Auth Error: {err}"
         except Exception as e:
             return False, str(e)
 
     def post_text_message(self, message_text):
+        if not self.token:
+            return False, "Slack Bot Token is missing."
+        if not self.channel_id:
+            return False, "Slack Channel ID is missing."
         url = "https://slack.com/api/chat.postMessage"
         payload = {"channel": self.channel_id, "text": message_text}
+        if Config.SLACK_THREAD_TS:
+            payload["thread_ts"] = Config.SLACK_THREAD_TS
         try:
             resp = requests.post(
                 url,
@@ -423,19 +518,32 @@ class SlackUploader:
                 timeout=20
             )
             data = resp.json()
-            return data.get("ok", False), data.get("error") if not data.get("ok") else data
+            if data.get("ok"):
+                return True, data
+            err = data.get("error", "Unknown error")
+            if err == "channel_not_found":
+                return False, f"Channel '{self.channel_id}' not found. Make sure the channel ID is correct (e.g. C0123456789)."
+            if err == "not_in_channel":
+                return False, f"The bot is not invited to channel '{self.channel_id}'. Invite the bot using: /invite @botname"
+            return False, err
         except Exception as e:
             return False, str(e)
 
-    def upload_screenshot(self, image_path, message_text=None):
+    def upload_screenshot(self, image_path, message_text=None, title=None):
+        if not self.token:
+            return False, "Slack Bot Token is missing."
+        if not self.channel_id:
+            return False, "Slack Channel ID is missing."
         if not os.path.exists(image_path):
             return False, f"File not found: {image_path}"
 
         filename = os.path.basename(image_path)
         file_size = os.path.getsize(image_path)
-        comment = message_text or Config.get_formatted_message()
+        comment = message_text or Config.get_formatted_message(title=title)
+        file_title = title or f"Grafana Snapshot ({filename})"
 
         try:
+            # Step 1: Request S3 upload URL
             resp1 = requests.get(
                 "https://slack.com/api/files.getUploadURLExternal",
                 headers=self.headers,
@@ -444,11 +552,17 @@ class SlackUploader:
             )
             data1 = resp1.json()
             if not data1.get("ok"):
-                return False, f"Slack API Step 1 failed: {data1.get('error')}"
+                err1 = data1.get("error", "Unknown error")
+                if err1 == "missing_scope":
+                    return False, "Slack Bot Token is missing the required 'files:write' scope."
+                if err1 == "invalid_auth":
+                    return False, "Invalid Slack Bot Token. Check that your token begins with 'xoxb-'."
+                return False, f"Slack API Step 1 (getUploadURL) failed: {err1}"
 
             upload_url = data1["upload_url"]
             file_id = data1["file_id"]
 
+            # Step 2: Upload file bytes directly to Slack S3
             with open(image_path, "rb") as f:
                 file_bytes = f.read()
 
@@ -461,20 +575,31 @@ class SlackUploader:
             if resp2.status_code not in (200, 201, 204):
                 return False, f"Slack S3 upload failed (HTTP {resp2.status_code})"
 
+            # Step 3: Complete upload and share to channel
+            complete_payload = {
+                "files": [{"id": file_id, "title": file_title}],
+                "channel_id": self.channel_id,
+                "initial_comment": comment
+            }
+            if Config.SLACK_THREAD_TS:
+                complete_payload["thread_ts"] = Config.SLACK_THREAD_TS
+
             resp3 = requests.post(
                 "https://slack.com/api/files.completeUploadExternal",
                 headers={**self.headers, "Content-Type": "application/json; charset=utf-8"},
-                data=json.dumps({
-                    "files": [{"id": file_id, "title": f"Grafana Snapshot ({filename})"}],
-                    "channel_id": self.channel_id,
-                    "initial_comment": comment
-                }),
+                data=json.dumps(complete_payload),
                 timeout=30
             )
             data3 = resp3.json()
             if data3.get("ok"):
                 return True, data3
-            return False, f"Slack Complete failed: {data3.get('error')}"
+
+            err3 = data3.get("error", "Unknown error")
+            if err3 == "not_in_channel":
+                return False, f"Slack upload failed: The bot is not in channel '{self.channel_id}'. Invite it with /invite @botname"
+            if err3 == "channel_not_found":
+                return False, f"Slack upload failed: Channel '{self.channel_id}' not found. Check the channel ID."
+            return False, f"Slack Complete Upload failed: {err3}"
         except Exception as e:
             return False, str(e)
 
@@ -490,12 +615,25 @@ BOT_STATE = {
     "last_status": "Paused" if Config.BOT_PAUSED else "Idle"
 }
 _state_lock = threading.Lock()
+_capture_lock = threading.Lock()
+
+
+def get_current_time_str(fmt="%Y-%m-%d %H:%M:%S"):
+    try:
+        tz = pytz.timezone(Config.TIMEZONE)
+        return datetime.now(tz).strftime(fmt)
+    except Exception:
+        return datetime.now().strftime(fmt)
 
 
 def bot_log(message):
-    timestamp = datetime.now().strftime("%H:%M:%S")
+    try:
+        tz = pytz.timezone(Config.TIMEZONE)
+        timestamp = datetime.now(tz).strftime("%H:%M:%S")
+    except Exception:
+        timestamp = datetime.now().strftime("%H:%M:%S")
     entry = f"[{timestamp}] {message}"
-    print(entry)
+    print(entry, flush=True)
     LOG_BUFFER.append(entry)
 
 
@@ -507,52 +645,71 @@ def execute_cycle():
         BOT_STATE["is_running"] = True
         BOT_STATE["last_status"] = "Capturing..."
 
-    image_path = None
     try:
         Config.reload()
-        if not Config.GRAFANA_URL:
+        target_urls = Config.get_target_urls()
+        if not target_urls:
             bot_log("❌ Grafana Link is empty! Please enter your Grafana URL and click Save.")
             with _state_lock:
                 BOT_STATE["last_status"] = "Grafana Link Missing"
             return
 
-        bot_log(f"🚀 Capturing screenshot for: {Config.GRAFANA_URL}")
+        total = len(target_urls)
+        bot_log(f"🚀 Starting capture cycle for {total} URL(s)...")
+
         capture = GrafanaCapture()
-        image_path = capture.capture_screenshot()
-        size_kb = os.path.getsize(image_path) / 1024
+        uploader = SlackUploader() if (Config.SLACK_BOT_TOKEN and Config.SLACK_CHANNEL_ID) else None
+        uploaded_count = 0
+        error_count = 0
 
-        if not Config.SLACK_BOT_TOKEN or not Config.SLACK_CHANNEL_ID:
-            bot_log(f"⚠️ Screenshot captured successfully ({size_kb:.1f} KB)!")
-            bot_log("ℹ️ Slack upload skipped because Slack Bot Token or Channel ID is not configured yet.")
-            with _state_lock:
-                BOT_STATE["last_run_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                BOT_STATE["last_status"] = f"Captured ({size_kb:.1f} KB) - Slack Pending"
-            return
+        for idx, url in enumerate(target_urls, 1):
+            image_path = None
+            try:
+                bot_log(f"📸 [{idx}/{total}] Capturing: {url}")
+                with _capture_lock:
+                    image_path = capture.capture_screenshot(target_url=url)
+                size_kb = os.path.getsize(image_path) / 1024
 
-        bot_log(f"📤 Uploading snapshot to Slack channel {Config.SLACK_CHANNEL_ID}...")
-        uploader = SlackUploader()
-        ok, res = uploader.upload_screenshot(image_path)
+                if not uploader:
+                    bot_log(f"⚠️ Screenshot [{idx}/{total}] captured ({size_kb:.1f} KB), Slack upload skipped (Token or Channel ID not set).")
+                    continue
 
-        if ok:
-            bot_log("✅ Successfully uploaded snapshot to Slack!")
-            with _state_lock:
-                BOT_STATE["last_run_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                BOT_STATE["last_status"] = "Success"
-        else:
-            bot_log(f"❌ Slack upload error: {res}")
-            with _state_lock:
-                BOT_STATE["last_status"] = f"Slack Error: {res}"
+                bot_log(f"📤 [{idx}/{total}] Uploading snapshot to Slack channel {Config.SLACK_CHANNEL_ID}...")
+                formatted_msg = Config.get_formatted_message(target_url=url)
+                ok, res = uploader.upload_screenshot(image_path, message_text=formatted_msg)
+                if ok:
+                    uploaded_count += 1
+                    bot_log(f"✅ [{idx}/{total}] Successfully uploaded snapshot to Slack!")
+                else:
+                    error_count += 1
+                    bot_log(f"❌ [{idx}/{total}] Slack upload error: {res}")
+            except Exception as item_err:
+                error_count += 1
+                bot_log(f"💥 [{idx}/{total}] Capture Error: {item_err}")
+            finally:
+                if image_path and os.path.exists(image_path):
+                    try:
+                        os.remove(image_path)
+                    except Exception:
+                        pass
+
+        now_str = get_current_time_str()
+        with _state_lock:
+            BOT_STATE["last_run_time"] = now_str
+            if error_count == 0 and uploaded_count > 0:
+                BOT_STATE["last_status"] = f"Success ({uploaded_count} uploaded)"
+            elif not uploader:
+                BOT_STATE["last_status"] = f"Captured ({total}) - Slack Pending"
+            elif error_count > 0 and uploaded_count > 0:
+                BOT_STATE["last_status"] = f"Partial ({uploaded_count}/{total} ok, {error_count} failed)"
+            else:
+                BOT_STATE["last_status"] = "Failed"
 
     except Exception as e:
-        bot_log(f"💥 Capture Error: {e}")
+        bot_log(f"💥 Cycle Exception: {e}")
         with _state_lock:
             BOT_STATE["last_status"] = f"Error: {e}"
     finally:
-        if image_path and os.path.exists(image_path):
-            try:
-                os.remove(image_path)
-            except Exception:
-                pass
         with _state_lock:
             BOT_STATE["is_running"] = False
 
@@ -950,6 +1107,8 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
 
     if (token && !token.startsWith("••••")) {
       payload.SLACK_BOT_TOKEN = token;
+    } else if (token === "") {
+      payload.SLACK_BOT_TOKEN = "";
     }
 
     try {
@@ -1164,6 +1323,22 @@ def update_settings():
     return jsonify({"success": True, "message": "Settings saved successfully"})
 
 
+def cleanup_old_previews():
+    tmp_dir = tempfile.gettempdir()
+    now = time.time()
+    try:
+        for fname in os.listdir(tmp_dir):
+            if fname.startswith("preview_") and fname.endswith(".png"):
+                full_path = os.path.join(tmp_dir, fname)
+                try:
+                    if os.path.isfile(full_path) and (now - os.path.getmtime(full_path) > 1800):
+                        os.remove(full_path)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
 @app.route("/api/preview-capture", methods=["POST"])
 def preview_capture():
     data = request.get_json() or {}
@@ -1184,12 +1359,22 @@ def preview_capture():
     if password and password.startswith("••••"):
         password = None
 
+    cleanup_old_previews()
+
     bot_log(f"📸 Live Preview Request for: {url}")
     try:
         capture = GrafanaCapture()
-        preview_filename = f"preview_{int(time.time())}.png"
+        preview_filename = f"preview_{int(time.time() * 1000)}.png"
         preview_path = os.path.join(tempfile.gettempdir(), preview_filename)
-        capture.capture_screenshot(target_url=url, output_path=preview_path, username=username, password=password, token=token, cookie=cookie)
+        with _capture_lock:
+            capture.capture_screenshot(
+                target_url=url,
+                output_path=preview_path,
+                username=username,
+                password=password,
+                token=token,
+                cookie=cookie
+            )
         size_kb = os.path.getsize(preview_path) / 1024
 
         return jsonify({
@@ -1206,7 +1391,7 @@ def preview_capture():
 def get_preview_image(filename):
     safe_name = os.path.basename(filename)
     path = os.path.join(tempfile.gettempdir(), safe_name)
-    if os.path.exists(path):
+    if os.path.exists(path) and os.path.isfile(path):
         return send_file(path, mimetype="image/png")
     return "Not found", 404
 
@@ -1226,29 +1411,43 @@ def toggle_pause():
 
 @app.route("/api/trigger", methods=["POST"])
 def trigger_cycle():
-    if BOT_STATE["is_running"]:
-        return jsonify({"success": False, "error": "A cycle is already running."}), 400
+    with _state_lock:
+        if BOT_STATE["is_running"]:
+            return jsonify({"success": False, "error": "A capture cycle is already in progress."}), 400
 
     t = threading.Thread(target=execute_cycle, daemon=True)
     t.start()
-    return jsonify({"success": True, "message": "Cycle started."})
+    return jsonify({"success": True, "message": "Capture cycle started."})
 
 
 @app.route("/api/test-slack", methods=["POST"])
 def test_slack():
     uploader = SlackUploader()
     ok, details = uploader.test_auth()
-    if ok:
-        user = details.get("user", "Bot")
-        team = details.get("team", "Workspace")
-        uploader.post_text_message(
-            f"🔔 *Slack Test Ping Successful!*\nConnected as `{user}` on `{team}` at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}."
-        )
+    if not ok:
+        return jsonify({"success": False, "error": str(details)}), 400
+
+    user = details.get("user", "Bot")
+    team = details.get("team", "Workspace")
+
+    if not Config.SLACK_CHANNEL_ID:
         return jsonify({
             "success": True,
-            "message": f"Connected to '{team}' as '{user}'! Test ping posted to channel."
+            "message": f"Connected to '{team}' as '{user}'! (Slack Channel ID is empty, so test message was not posted to a channel)."
         })
-    return jsonify({"success": False, "error": str(details)}), 400
+
+    post_ok, post_res = uploader.post_text_message(
+        f"🔔 *Slack Test Ping Successful!*\nConnected as `{user}` on `{team}` at {get_current_time_str()}."
+    )
+    if post_ok:
+        return jsonify({
+            "success": True,
+            "message": f"Connected to '{team}' as '{user}'! Test ping posted to channel {Config.SLACK_CHANNEL_ID}."
+        })
+    return jsonify({
+        "success": False,
+        "error": f"Connected as '{user}' on '{team}', but posting to channel failed: {post_res}"
+    }), 400
 
 
 @app.route("/api/logs", methods=["GET"])
@@ -1279,24 +1478,83 @@ def scheduler_loop():
             interval_sec = max(60, Config.SCHEDULE_INTERVAL_MINUTES * 60)
             bot_log(f"⏳ Next scheduled capture in {Config.SCHEDULE_INTERVAL_MINUTES} minute(s)...")
 
-            for _ in range(int(interval_sec / 2)):
+            slept = 0
+            while slept < interval_sec:
                 with _state_lock:
                     if BOT_STATE.get("is_paused", False):
                         break
                 time.sleep(2)
+                slept += 2
+                interval_sec = max(60, Config.SCHEDULE_INTERVAL_MINUTES * 60)
         else:
             time.sleep(2)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Headless Grafana to Slack Monitoring Bot")
-    parser.add_argument("--once", action="store_true", help="Capture & upload once, then exit")
+    parser.add_argument("--once", action="store_true", help="Capture & upload once for all active links, then exit")
+    parser.add_argument("--ui-only", action="store_true", help="Start only the Web Management UI without the background scheduler")
+    parser.add_argument("--no-web", action="store_true", help="Start only the scheduler loop without starting the web server")
+    parser.add_argument("--test-slack", action="store_true", help="Verify Slack bot credentials and post a test ping message")
+    parser.add_argument("--test-grafana", action="store_true", help="Take a headless screenshot of active Grafana link(s) and save locally")
     args = parser.parse_args()
 
     Config.reload()
 
+    if args.test_slack:
+        bot_log("🔍 Testing Slack credentials...")
+        uploader = SlackUploader()
+        ok, details = uploader.test_auth()
+        if not ok:
+            bot_log(f"❌ Slack authentication failed: {details}")
+            sys.exit(1)
+        user = details.get("user", "Bot")
+        team = details.get("team", "Workspace")
+        bot_log(f"✅ Authenticated with Slack as '{user}' on workspace '{team}'!")
+        if Config.SLACK_CHANNEL_ID:
+            post_ok, post_res = uploader.post_text_message(
+                f"🔔 *Slack Test Ping Successful!*\nCLI test executed at {get_current_time_str()}."
+            )
+            if post_ok:
+                bot_log(f"✅ Test message posted to channel {Config.SLACK_CHANNEL_ID} successfully!")
+            else:
+                bot_log(f"❌ Failed to post message to channel {Config.SLACK_CHANNEL_ID}: {post_res}")
+                sys.exit(1)
+        else:
+            bot_log("⚠️ SLACK_CHANNEL_ID is not configured, skipped posting message.")
+        return
+
+    if args.test_grafana:
+        bot_log("🔍 Testing Grafana screenshot capture...")
+        urls = Config.get_target_urls()
+        if not urls:
+            bot_log("❌ No Grafana URL configured! Set GRAFANA_URL in .env or via Web UI.")
+            sys.exit(1)
+        capture = GrafanaCapture()
+        for idx, u in enumerate(urls, 1):
+            local_out = f"test_capture_{idx}.png"
+            bot_log(f"📸 Testing capture for: {u} -> {local_out}")
+            try:
+                capture.capture_screenshot(target_url=u, output_path=local_out)
+                bot_log(f"✅ Successfully captured to {local_out} ({os.path.getsize(local_out)/1024:.1f} KB)")
+            except Exception as e:
+                bot_log(f"❌ Capture failed for {u}: {e}")
+                sys.exit(1)
+        return
+
     if args.once:
         execute_cycle()
+        return
+
+    if args.no_web:
+        bot_log("=" * 65)
+        bot_log("🚀 Grafana -> Slack Daemon Mode (No Web UI)")
+        bot_log(f"⏱️  Interval: Every {Config.SCHEDULE_INTERVAL_MINUTES} minute(s)")
+        bot_log("=" * 65)
+        try:
+            scheduler_loop()
+        except KeyboardInterrupt:
+            bot_log("\n🛑 Bot stopped.")
         return
 
     bot_log("=" * 65)
@@ -1305,8 +1563,9 @@ def main():
     bot_log(f"⏱️  Interval: Every {Config.SCHEDULE_INTERVAL_MINUTES} minute(s)")
     bot_log("=" * 65)
 
-    scheduler_thread = threading.Thread(target=scheduler_loop, daemon=True)
-    scheduler_thread.start()
+    if not args.ui_only:
+        scheduler_thread = threading.Thread(target=scheduler_loop, daemon=True)
+        scheduler_thread.start()
 
     try:
         run_web_server()

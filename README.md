@@ -24,19 +24,12 @@
 ```
 headless-bot/
 ├── .env                  # Active environment configuration (synced with UI)
-├── .env.example          # Environment template
-├── links.json            # Monitored Grafana links storage (managed via UI)
+├── .env.example          # Environment configuration template
 ├── requirements.txt      # Python dependencies (playwright, requests, python-dotenv, flask, pytz)
-├── config.py             # Configuration loader, validator, and .env synchronizer
-├── grafana_capture.py    # Headless Playwright capture engine
-├── slack_uploader.py     # Modern 3-step Slack API upload module
-├── web_server.py         # Flask Web Management UI & REST API
-├── main.py               # Main CLI and scheduler daemon entrypoint
-├── templates/
-│   └── index.html        # Modern dark-mode Web UI dashboard
-├── setup.sh              # 1-step installer for Ubuntu Linux
+├── main.py               # Unified headless capture engine, Slack uploader, Web Operations UI & daemon
+├── setup.sh              # 1-step installer script for Ubuntu Linux (installs Chromium & venv)
 ├── Dockerfile            # Container definition exposing port 5000
-├── docker-compose.yml    # Docker compose runner
+├── docker-compose.yml    # Docker compose runner with host networking
 └── README.md             # Documentation
 ```
 

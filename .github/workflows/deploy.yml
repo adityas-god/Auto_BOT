@@ -21,10 +21,13 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           script: |
             echo "🚀 Updating Headless Bot on Cloud VM..."
-            cd "/AUTO BOT"
+            if [ -d "/AUTO BOT" ]; then cd "/AUTO BOT"; elif [ -d "$HOME/headless-bot" ]; then cd "$HOME/headless-bot"; elif [ -d "/home/ubuntu/headless-bot" ]; then cd "/home/ubuntu/headless-bot"; fi
 
             # Pull latest changes from GitHub
             git pull origin main
+
+            # Ensure .env exists before starting docker compose (avoids .env being created as a folder)
+            [ -f .env ] || cp .env.example .env
 
             # Rebuild and restart the Docker container
             docker compose up -d --build

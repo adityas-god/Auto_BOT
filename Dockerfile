@@ -9,8 +9,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Install Playwright Chromium headless browser
 RUN playwright install chromium
 
-# Copy application source code
+# Copy application source code and template
 COPY main.py .
+COPY .env.example .
 
 # Expose Web UI management port
 EXPOSE 5000
