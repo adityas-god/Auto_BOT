@@ -4,33 +4,29 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Deploy and restart container on VM
+        run: |
+          echo "🚀 Updating Headless Bot on Cloud VM via cac-automation runner..."
+          if [ -d "/AUTO BOT" ]; then
+            cd "/AUTO BOT"
+          elif [ -d "$HOME/headless-bot" ]; then
+            cd "$HOME/headless-bot"
+          elif [ -d "/home/ubuntu/headless-bot" ]; then
+            cd "/home/ubuntu/headless-bot"
+          else
+            echo "Current working directory: $(pwd)"
+          fi
 
-      - name: Deploy to Cloud VM over SSH
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          script: |
-            echo "🚀 Updating Headless Bot on Cloud VM..."
-            if [ -d "/AUTO BOT" ]; then cd "/AUTO BOT"; elif [ -d "$HOME/headless-bot" ]; then cd "$HOME/headless-bot"; elif [ -d "/home/ubuntu/headless-bot" ]; then cd "/home/ubuntu/headless-bot"; fi
-
-            # Pull latest changes from GitHub
-            git pull origin main
-
-            # Ensure .env exists before starting docker compose (avoids .env being created as a folder)
-            [ -f .env ] || cp .env.example .env
-
-            # Rebuild and restart the Docker container
-            docker compose up -d --build
-
-            echo "✅ Deployment complete! Container status:"
-            docker ps
+          echo "📁 Deploying in: $(pwd)"
+          git pull origin main
+          [ -f .env ] || cp .env.example .env
+          docker compose up -d --build
+          echo "✅ Deployment complete! Container status:"
+          docker ps
