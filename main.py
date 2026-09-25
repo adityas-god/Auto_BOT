@@ -722,578 +722,713 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Grafana Snapshot Bot — Ops Center</title>
+  <title>Grafana Snapshot Bot — Ops Overview</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-base: #0b0f14;
-      --bg-surface: #111720;
-      --bg-card: #151d28;
-      --bg-card-hover: #182230;
-      --bg-input: #0a0e14;
-      --border-subtle: #1e293b;
-      --border-strong: #273549;
-      --border-focus: #10b981;
-      --primary: #10b981;
-      --primary-hover: #059669;
-      --primary-active: #047857;
-      --primary-subtle: rgba(16, 185, 129, 0.12);
-      --primary-glow: rgba(16, 185, 129, 0.22);
-      --text-main: #f8fafc;
-      --text-muted: #94a3b8;
-      --text-dim: #64748b;
-      --emerald-badge-bg: rgba(16, 185, 129, 0.12);
-      --emerald-badge-border: rgba(16, 185, 129, 0.28);
-      --emerald-badge-text: #34d399;
-      --amber-badge-bg: rgba(245, 158, 11, 0.12);
-      --amber-badge-border: rgba(245, 158, 11, 0.28);
-      --amber-badge-text: #fbbf24;
-      --slate-badge-bg: rgba(148, 163, 184, 0.1);
-      --slate-badge-border: rgba(148, 163, 184, 0.2);
-      --slate-badge-text: #cbd5e1;
-      --accent-rose: #f43f5e;
-      --radius-sm: 6px;
-      --radius-md: 10px;
-      --radius-lg: 14px;
+      --canvas: #f2efe9;
+      --card-bg: #ffffff;
+      --sidebar-bg: #141416;
+      --border-dark: #1a1a1a;
+      --border-light: #e4e0d7;
+      --primary-orange: #ff5a00;
+      --primary-orange-hover: #e04f00;
+      --text-dark: #18181b;
+      --text-muted: #64748b;
+      --text-dim: #71717a;
+      --accent-green: #16a34a;
+      --accent-blue: #2563eb;
+      --accent-amber: #d97706;
+      --accent-red: #dc2626;
+      --shadow-brutal: 3px 3px 0px var(--border-dark);
+      --shadow-sm: 2px 2px 0px var(--border-dark);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background-color: var(--bg-base);
-      background-image: 
-        radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.07) 0px, transparent 45%),
-        radial-gradient(at 100% 100%, rgba(30, 41, 59, 0.4) 0px, transparent 50%),
-        linear-gradient(180deg, #0b0f14 0%, #0d1219 100%);
-      background-attachment: fixed;
-      color: var(--text-main);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      padding: 36px 18px 60px;
+    html, body {
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+      background: var(--canvas);
+      color: var(--text-dark);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       -webkit-font-smoothing: antialiased;
     }
-    .wrapper { width: 100%; max-width: 820px; }
 
-    /* Header Bar */
-    .header {
-      display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 24px; padding-bottom: 20px;
-      border-bottom: 1px solid var(--border-subtle);
+    /* Overall Layout: Dark Sidebar + Hero Workspace */
+    .app-container {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
     }
-    .brand { display: flex; align-items: center; gap: 14px; }
-    .brand-icon {
-      width: 44px; height: 44px;
-      background: linear-gradient(135deg, #10b981 0%, #047857 100%);
-      border-radius: var(--radius-md);
-      display: flex; align-items: center; justify-content: center;
+
+    /* Left Sidebar Rail */
+    .sidebar {
+      width: 68px;
+      background: var(--sidebar-bg);
+      border-right: 2px solid var(--border-dark);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 0;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    .sidebar-logo {
+      width: 44px;
+      height: 44px;
+      background: var(--primary-orange);
+      border: 2px solid var(--border-dark);
+      box-shadow: var(--shadow-sm);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       color: #fff;
-      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
+      margin-bottom: 20px;
     }
-    .brand h1 { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; color: var(--text-main); }
-    .brand p { font-size: 13px; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
+    .nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      width: 100%;
+      align-items: center;
+      flex: 1;
+    }
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      width: 52px;
+      height: 50px;
+      border: 2px solid transparent;
+      border-radius: 4px;
+      color: #a1a1aa;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      transition: all 0.15s ease;
+    }
+    .nav-item.active {
+      background: #27272a;
+      border-color: var(--primary-orange);
+      color: #ffffff;
+      box-shadow: 2px 2px 0px var(--primary-orange);
+    }
+    .nav-item:hover:not(.active) {
+      color: #ffffff;
+      background: #1f1f23;
+    }
 
-    .header-actions { display: flex; align-items: center; gap: 12px; }
-
-    .status-badge {
-      display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px;
-      border-radius: 9999px; font-size: 12px; font-weight: 500;
-      background: var(--emerald-badge-bg); border: 1px solid var(--emerald-badge-border);
-      color: var(--emerald-badge-text);
-      transition: all 0.2s ease;
-    }
-    .status-dot {
-      width: 8px; height: 8px; border-radius: 50%;
-      background: var(--primary);
-      box-shadow: 0 0 10px var(--primary);
-      position: relative;
-    }
-    .status-dot.pulse::after {
-      content: '';
-      position: absolute; inset: -3px; border-radius: 50%;
-      border: 1px solid var(--primary);
-      animation: ripple 2s infinite ease-out;
-    }
-    @keyframes ripple {
-      0% { transform: scale(1); opacity: 1; }
-      100% { transform: scale(2.4); opacity: 0; }
+    /* Main Workspace */
+    .workspace {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      min-width: 0;
     }
 
-    /* Primary Card */
-    .card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-strong);
-      border-radius: var(--radius-lg);
-      padding: 30px;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
-      margin-bottom: 24px;
+    /* Top Navigation Bar */
+    .topbar {
+      height: 52px;
+      background: var(--canvas);
+      border-bottom: 2px solid var(--border-dark);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      flex-shrink: 0;
+    }
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .topbar-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 23px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-dark);
+    }
+    .topbar-tag {
+      background: #e4e0d7;
+      border: 1px solid var(--border-dark);
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      border-radius: 2px;
+      color: #3f3f46;
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
-    /* Sectional Blocks inside Card */
-    .section-block {
-      padding: 20px;
-      background: rgba(10, 14, 20, 0.5);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md);
-      margin-bottom: 22px;
+    /* Stat Ribbon (Hero Metric Cards) */
+    .metrics-ribbon {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      padding: 10px 14px 6px;
+      flex-shrink: 0;
     }
-    .section-title {
-      font-size: 12px; font-weight: 600; text-transform: uppercase;
-      letter-spacing: 0.06em; color: var(--text-muted);
-      margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+    .metric-card {
+      background: var(--card-bg);
+      border: 2px solid var(--border-dark);
+      box-shadow: var(--shadow-sm);
+      border-radius: 4px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
-    .section-title svg { color: var(--primary); }
+    .metric-info { display: flex; flex-direction: column; }
+    .metric-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+    .metric-value {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: var(--text-dark);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .metric-pill {
+      font-family: 'Inter', sans-serif;
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border: 1.5px solid var(--border-dark);
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+    .pill-green { background: #dcfce7; color: #15803d; }
+    .pill-orange { background: #ffedd5; color: #c2410c; }
+    .pill-slate { background: #f1f5f9; color: #475569; }
+
+    /* Main Grid: Form Left, Console Right */
+    .hero-grid {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 12px;
+      padding: 6px 14px 12px;
+      overflow: hidden;
+    }
+
+    /* Panel Base Style */
+    .panel {
+      background: var(--card-bg);
+      border: 2px solid var(--border-dark);
+      box-shadow: var(--shadow-brutal);
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .panel-header {
+      background: #faf8f5;
+      border-bottom: 2px solid var(--border-dark);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .panel-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-dark);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-title svg { color: var(--primary-orange); }
+
+    /* Form Body (Zero Page Scroll) */
+    .form-panel-body {
+      padding: 10px 14px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+    }
+    .form-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
 
     /* Form Fields */
-    .form-group { margin-bottom: 18px; }
-    .form-group:last-child { margin-bottom: 0; }
-    label {
-      display: flex; align-items: center; gap: 8px;
-      font-size: 13px; font-weight: 600; color: #e2e8f0; margin-bottom: 8px;
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
     }
-    label svg { color: var(--text-muted); flex-shrink: 0; }
-    .hint {
-      font-size: 12px; color: var(--text-dim); margin-top: 6px; line-height: 1.45;
+    .field-row-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
     }
-    .hint code {
-      background: rgba(255, 255, 255, 0.06); padding: 2px 6px;
-      border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 11px;
-      color: #cbd5e1;
+    .form-field {
+      display: flex;
+      flex-direction: column;
+    }
+    .form-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #27272a;
+      margin-bottom: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .badge-subtle {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 2px;
+      border: 1px solid #d4d4d8;
+      background: #f4f4f5;
+      color: #52525b;
+    }
+    .badge-orange-tag {
+      background: #fff7ed;
+      border-color: #fdba74;
+      color: #c2410c;
     }
 
-    /* Inputs */
-    .input-wrapper { position: relative; display: flex; align-items: center; }
-    .input {
-      width: 100%; background: var(--bg-input);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-sm);
-      color: var(--text-main); font-family: inherit; font-size: 13.5px;
-      padding: 11px 14px; outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+    /* Normal Inputs (Clean, crisp, standard height) */
+    .input-box {
+      position: relative;
+      display: flex;
+      align-items: center;
     }
-    .input:focus {
-      border-color: var(--border-focus);
-      box-shadow: 0 0 0 3px var(--primary-glow);
+    .input-field {
+      width: 100%;
+      height: 32px;
+      background: #ffffff;
+      border: 2px solid var(--border-dark);
+      border-radius: 3px;
+      color: var(--text-dark);
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      padding: 4px 8px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .input-field:focus {
+      border-color: var(--primary-orange);
+      box-shadow: 2px 2px 0px var(--primary-orange);
     }
     .input-code {
-      font-family: 'JetBrains Mono', monospace; font-size: 12.5px; letter-spacing: -0.01em;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
     }
-    .input-toggle-btn {
-      position: absolute; right: 10px; background: transparent; border: none;
-      color: var(--text-dim); cursor: pointer; display: flex; align-items: center;
-      padding: 4px; border-radius: 4px; transition: color 0.15s;
+    .input-eye-btn {
+      position: absolute;
+      right: 6px;
+      background: transparent;
+      border: none;
+      color: #71717a;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 2px;
     }
-    .input-toggle-btn:hover { color: var(--text-main); }
+    .input-eye-btn:hover { color: var(--text-dark); }
 
-    /* Pill Badges */
-    .badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      padding: 2px 8px; border-radius: 9999px;
-      font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+    /* Action Buttons (Neo-brutalist GreyOrange) */
+    .form-actions-bar {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 2px dashed var(--border-light);
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr 1fr;
+      gap: 8px;
     }
-    .badge-emerald {
-      background: var(--emerald-badge-bg); border: 1px solid var(--emerald-badge-border);
-      color: var(--emerald-badge-text);
-    }
-    .badge-amber {
-      background: var(--amber-badge-bg); border: 1px solid var(--amber-badge-border);
-      color: var(--amber-badge-text);
-    }
-    .badge-slate {
-      background: var(--slate-badge-bg); border: 1px solid var(--slate-badge-border);
-      color: var(--slate-badge-text);
-    }
-
-    .grid-2 {
-      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
-    }
-    @media (max-width: 640px) {
-      .grid-2 { grid-template-columns: 1fr; }
-      .header { flex-direction: column; align-items: flex-start; gap: 16px; }
-      .header-actions { width: 100%; justify-content: space-between; }
-    }
-
-    /* Buttons */
     .btn {
-      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-      padding: 10px 18px; border-radius: var(--radius-sm); font-family: inherit; font-size: 13.5px;
-      font-weight: 600; cursor: pointer; transition: all 0.18s ease; border: 1px solid transparent;
-      outline: none; user-select: none;
+      height: 36px;
+      border: 2px solid var(--border-dark);
+      box-shadow: var(--shadow-sm);
+      border-radius: 3px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 14.5px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.1s ease;
+      user-select: none;
+      text-decoration: none;
     }
-    .btn svg { flex-shrink: 0; }
+    .btn:active {
+      transform: translate(1px, 1px);
+      box-shadow: 1px 1px 0px var(--border-dark);
+    }
+    .btn-orange {
+      background: var(--primary-orange);
+      color: #ffffff;
+    }
+    .btn-orange:hover {
+      background: var(--primary-orange-hover);
+    }
+    .btn-white {
+      background: #ffffff;
+      color: var(--text-dark);
+    }
+    .btn-white:hover {
+      background: #f4f4f5;
+    }
+    .btn-dark {
+      background: var(--border-dark);
+      color: #ffffff;
+    }
+    .btn-dark:hover {
+      background: #27272a;
+      border-color: var(--primary-orange);
+    }
 
-    .btn-primary {
-      width: 100%; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
-      color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.1);
-      box-shadow: 0 4px 16px var(--primary-glow); margin-top: 8px;
+    /* Terminal Console Panel */
+    .console-body {
+      flex: 1;
+      min-height: 0;
+      background: #141416;
+      padding: 10px 14px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #a1a1aa;
     }
-    .btn-primary:hover {
-      background: linear-gradient(135deg, #34d399 0%, var(--primary) 100%);
-      transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+    .console-body div {
+      margin-bottom: 2px;
+      word-break: break-all;
     }
-    .btn-primary:active { transform: translateY(0); }
-
-    .btn-group {
-      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 14px;
-    }
-    @media (max-width: 640px) { .btn-group { grid-template-columns: 1fr; } }
-
-    .btn-secondary {
-      background: #17202c; border: 1px solid var(--border-strong); color: #e2e8f0;
-    }
-    .btn-secondary:hover {
-      background: #202c3d; border-color: #3b4b60; color: #fff;
-    }
-
-    .btn-action-green {
-      background: rgba(16, 185, 129, 0.14); border: 1px solid rgba(16, 185, 129, 0.35);
-      color: var(--emerald-badge-text);
-    }
-    .btn-action-green:hover {
-      background: rgba(16, 185, 129, 0.24); border-color: rgba(16, 185, 129, 0.6);
-      color: #fff;
-    }
-
-    .btn-header-pause {
-      background: #192230; border: 1px solid var(--border-strong);
-      color: #e2e8f0; font-size: 12.5px; padding: 6px 14px; border-radius: 9999px;
-    }
-    .btn-header-pause:hover { background: #222f42; }
-
-    /* Terminal Log */
-    .terminal-box {
-      background: #070a0e;
-      border: 1px solid var(--border-strong);
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
-    }
-    .terminal-header {
-      background: #0f151e;
-      padding: 10px 18px;
-      display: flex; justify-content: space-between; align-items: center;
-      border-bottom: 1px solid var(--border-subtle);
-      font-size: 12px; font-weight: 600; color: var(--text-muted);
-    }
-    .terminal-header-title { display: flex; align-items: center; gap: 8px; }
-    .terminal-header-title svg { color: var(--primary); }
-    .terminal-actions { display: flex; align-items: center; gap: 14px; }
-    .terminal-action-btn {
-      background: none; border: none; color: var(--text-dim);
-      font-family: inherit; font-size: 12px; cursor: pointer;
-      display: flex; align-items: center; gap: 5px; transition: color 0.15s;
-    }
-    .terminal-action-btn:hover { color: var(--text-main); }
-
-    .terminal-content {
-      padding: 16px 18px; height: 210px; overflow-y: auto;
-      font-family: 'JetBrains Mono', monospace; font-size: 12px;
-      color: #94a3b8; line-height: 1.65;
-    }
-    .terminal-content div { margin-bottom: 2px; word-break: break-all; }
+    .log-success { color: #4ade80; }
     .log-info { color: #38bdf8; }
-    .log-success { color: #34d399; }
-    .log-warn { color: #fbbf24; }
+    .log-warn { color: #facc15; }
     .log-error { color: #f87171; }
 
     /* Modal Backdrop */
     .modal-backdrop {
-      position: fixed; inset: 0; background: rgba(5, 8, 12, 0.85); backdrop-filter: blur(6px);
+      position: fixed; inset: 0; background: rgba(20, 20, 22, 0.75); backdrop-filter: blur(4px);
       display: none; align-items: center; justify-content: center; z-index: 2000; padding: 20px;
     }
     .modal-box {
-      background: #111722; border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
-      max-width: 960px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+      background: #ffffff; border: 2px solid var(--border-dark); box-shadow: 6px 6px 0px var(--border-dark);
+      border-radius: 4px; max-width: 900px; width: 100%; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden;
     }
     .modal-header {
-      padding: 14px 20px; display: flex; justify-content: space-between; align-items: center;
-      border-bottom: 1px solid var(--border-subtle); font-size: 14px; font-weight: 600;
-      color: var(--text-main);
+      padding: 10px 16px; background: #faf8f5; border-bottom: 2px solid var(--border-dark);
+      display: flex; justify-content: space-between; align-items: center;
+      font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 800; text-transform: uppercase;
     }
-    .modal-body { padding: 20px; overflow-y: auto; text-align: center; }
-    .modal-body img { max-width: 100%; border-radius: var(--radius-md); border: 1px solid var(--border-subtle); }
+    .modal-body { padding: 16px; overflow-y: auto; text-align: center; }
+    .modal-body img { max-width: 100%; border: 2px solid var(--border-dark); border-radius: 3px; }
+
+    /* Status dot */
+    .status-dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--accent-green);
+      display: inline-block;
+      border: 1.5px solid var(--border-dark);
+    }
 
     /* Toast */
     .toast {
-      position: fixed; bottom: 24px; right: 24px; padding: 12px 18px; border-radius: var(--radius-sm);
-      background: #16202c; color: #fff; font-size: 13px; font-weight: 500;
-      display: none; align-items: center; gap: 10px; z-index: 3000;
-      box-shadow: 0 12px 30px rgba(0,0,0,0.6); border: 1px solid var(--border-strong);
-      border-left: 4px solid var(--primary);
+      position: fixed; bottom: 20px; right: 20px; padding: 10px 16px;
+      background: #ffffff; color: var(--text-dark); font-size: 13px; font-weight: 600;
+      display: none; align-items: center; gap: 8px; z-index: 3000;
+      border: 2px solid var(--border-dark); box-shadow: var(--shadow-brutal);
+      border-left: 6px solid var(--primary-orange); border-radius: 3px;
     }
   </style>
 </head>
 <body>
 
-<div class="wrapper">
-  <!-- Header Bar -->
-  <div class="header">
-    <div class="brand">
-      <div class="brand-icon">
-        <!-- Modern Activity Graph SVG -->
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-        </svg>
-      </div>
-      <div>
-        <h1>Grafana Snapshot Bot</h1>
-        <p>Continuous Operations & Slack Dispatch Console</p>
-      </div>
+<div class="app-container">
+  <!-- Left Dark Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo" title="GreyOrange Headless Bot">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+        <polyline points="2 17 12 22 22 17"></polyline>
+        <polyline points="2 12 12 17 22 12"></polyline>
+      </svg>
     </div>
-    <div class="header-actions">
-      <button type="button" class="btn btn-header-pause" id="btn-pause-toggle" onclick="togglePause()">
-        <svg id="pause-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="6" y="4" width="4" height="16"></rect>
-          <rect x="14" y="4" width="4" height="16"></rect>
-        </svg>
-        <span id="pause-btn-text">Pause Scheduler</span>
-      </button>
-      <div class="status-badge" id="status-badge-container">
-        <span class="status-dot pulse"></span>
-        <span id="status-text">System Idle</span>
+
+    <nav class="nav-list">
+      <div class="nav-item active">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+        <span>Ops</span>
       </div>
-    </div>
-  </div>
-
-  <!-- Settings Card -->
-  <div class="card">
-    <form id="bot-form" onsubmit="event.preventDefault(); saveAll();">
-      
-      <!-- 1. Grafana Source -->
-      <div class="section-block">
-        <div class="section-title">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-            <line x1="8" y1="21" x2="16" y2="21"></line>
-            <line x1="12" y1="17" x2="12" y2="21"></line>
-          </svg>
-          Grafana Target & Credentials
-        </div>
-
-        <div class="form-group">
-          <label for="GRAFANA_URL">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-            Grafana Dashboard or Panel Link
-          </label>
-          <input type="text" id="GRAFANA_URL" class="input input-code" 
-                 placeholder="https://grafana.example.com/d/xyz/dashboard?kiosk=tv">
-          <div class="hint">Target dashboard or single-panel URL to capture.</div>
-        </div>
-
-        <!-- Option 1: Service Account Token -->
-        <div class="form-group">
-          <label for="GRAFANA_API_TOKEN">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-1.5 1.5L12 11l-4-4-6 6 4 4 6-6 5.5-5.5"></path><circle cx="16.5" cy="7.5" r="2.5"></circle></svg>
-            Service Account Token
-            <span class="badge badge-emerald">Option 1: Recommended API</span>
-          </label>
-          <div class="input-wrapper">
-            <input type="password" id="GRAFANA_API_TOKEN" class="input input-code" 
-                   placeholder="glsa_your_service_account_token_here">
-            <button type="button" class="input-toggle-btn" onclick="toggleVisibility('GRAFANA_API_TOKEN')" title="Toggle visibility">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-            </button>
-          </div>
-          <div class="hint">Created under <code>Administration → Users and access → Service accounts</code>.</div>
-        </div>
-
-        <!-- Option 2: Session Cookie -->
-        <div class="form-group">
-          <label for="GRAFANA_COOKIE">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-            Grafana Session Cookie
-            <span class="badge badge-slate">Option 2: SSO / Okta Bypass</span>
-          </label>
-          <div class="input-wrapper">
-            <input type="password" id="GRAFANA_COOKIE" class="input input-code" 
-                   placeholder="grafana_session=abcdef... (or full Cookie header)">
-            <button type="button" class="input-toggle-btn" onclick="toggleVisibility('GRAFANA_COOKIE')" title="Toggle visibility">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-            </button>
-          </div>
-          <div class="hint">Copy from DevTools (F12 → Application → Cookies → <code>grafana_session</code>) to bypass SSO screens.</div>
-        </div>
-
-        <!-- Option 3: Fallback Username & Password -->
-        <div class="grid-2">
-          <div class="form-group">
-            <label for="GRAFANA_USERNAME">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-              Username / Email
-            </label>
-            <input type="text" id="GRAFANA_USERNAME" class="input" placeholder="admin or email">
-            <div class="hint">Optional fallback login user.</div>
-          </div>
-          <div class="form-group">
-            <label for="GRAFANA_PASSWORD">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-              Password
-            </label>
-            <div class="input-wrapper">
-              <input type="password" id="GRAFANA_PASSWORD" class="input" placeholder="••••••••">
-              <button type="button" class="input-toggle-btn" onclick="toggleVisibility('GRAFANA_PASSWORD')" title="Toggle visibility">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-              </button>
-            </div>
-            <div class="hint">Optional fallback password.</div>
-          </div>
-        </div>
+      <div class="nav-item" onclick="triggerRun()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        <span>Run</span>
       </div>
-
-      <!-- 2. Slack Dispatch Target -->
-      <div class="section-block">
-        <div class="section-title">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
-          Slack Dispatch Destination
-        </div>
-
-        <div class="form-group">
-          <label for="SLACK_BOT_TOKEN">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-1.5 1.5L12 11l-4-4-6 6 4 4 6-6 5.5-5.5"></path><circle cx="16.5" cy="7.5" r="2.5"></circle></svg>
-            Slack Bot User OAuth Token
-          </label>
-          <div class="input-wrapper">
-            <input type="password" id="SLACK_BOT_TOKEN" class="input input-code" 
-                   placeholder="xoxb-your-slack-bot-token-here">
-            <button type="button" class="input-toggle-btn" onclick="toggleVisibility('SLACK_BOT_TOKEN')" title="Toggle visibility">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-            </button>
-          </div>
-          <div class="hint">Requires <code>files:write</code> and <code>chat:write</code> scopes in your Slack App.</div>
-        </div>
-
-        <div class="form-group">
-          <label for="SLACK_CHANNEL_ID">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line></svg>
-            Target Channel ID or URL
-          </label>
-          <input type="text" id="SLACK_CHANNEL_ID" class="input input-code" 
-                 placeholder="C0123456789 or https://slack.com/archives/C0123456789">
-          <div class="hint">Channel ID (e.g. <code>C0123456789</code>) or full archive URL.</div>
-        </div>
+      <div class="nav-item" onclick="previewSnapshot()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+        <span>View</span>
       </div>
-
-      <!-- 3. Scheduling & Custom Message -->
-      <div class="section-block">
-        <div class="section-title">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <polyline points="12 6 12 12 16 14"></polyline>
-          </svg>
-          Automation Schedule & Content
-        </div>
-
-        <div class="grid-2">
-          <div class="form-group">
-            <label for="SLACK_MESSAGE">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-              Message Template
-            </label>
-            <input type="text" id="SLACK_MESSAGE" class="input" 
-                   value="Grafana Snapshot Alert - {datetime}">
-            <div class="hint">Dynamic variables: <code>{datetime}</code>, <code>{date}</code>, <code>{time}</code></div>
-          </div>
-
-          <div class="form-group">
-            <label for="SCHEDULE_INTERVAL_MINUTES">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-              Interval (Minutes)
-            </label>
-            <input type="number" id="SCHEDULE_INTERVAL_MINUTES" class="input" value="30" min="1">
-            <div class="hint">Snapshot cycle interval.</div>
-          </div>
-        </div>
+      <div class="nav-item" onclick="testSlack()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        <span>Slack</span>
       </div>
+      <div class="nav-item" onclick="fetchLogs(true)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+        <span>Logs</span>
+      </div>
+    </nav>
+  </aside>
 
-      <!-- Save Button -->
-      <button type="submit" class="btn btn-primary" id="btn-save">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-          <polyline points="17 21 17 13 7 13 7 21"></polyline>
-          <polyline points="7 3 7 8 15 8"></polyline>
-        </svg>
-        Save & Apply Configuration
-      </button>
-
-      <!-- Action Toolbar -->
-      <div class="btn-group">
-        <button type="button" class="btn btn-secondary" onclick="previewSnapshot()" id="btn-preview">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-            <circle cx="12" cy="12" r="3"></circle>
+  <!-- Main Hero Workspace -->
+  <main class="workspace">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-title">Grafana Snapshot Bot</span>
+        <span class="topbar-tag">Headless Ops Center</span>
+      </div>
+      <div class="topbar-right">
+        <button type="button" class="btn btn-white" id="btn-pause-toggle" onclick="togglePause()" style="height: 32px; font-size: 13px; padding: 0 12px;">
+          <svg id="pause-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>
           </svg>
-          Preview Snapshot
+          <span id="pause-btn-text">Pause Scheduler</span>
         </button>
-        <button type="button" class="btn btn-secondary" onclick="testSlack()" id="btn-slack">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
-          Test Slack Ping
-        </button>
-        <button type="button" class="btn btn-action-green" onclick="triggerRun()" id="btn-run">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button type="button" class="btn btn-orange" onclick="triggerRun()" style="height: 32px; font-size: 13px; padding: 0 14px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="5 3 19 12 5 21 5 3"></polygon>
           </svg>
-          Run Capture Now
+          Capture Now
         </button>
       </div>
-    </form>
-  </div>
+    </header>
 
-  <!-- Real-Time Activity Log Console -->
-  <div class="terminal-box">
-    <div class="terminal-header">
-      <div class="terminal-header-title">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="4 17 10 11 4 5"></polyline>
-          <line x1="12" y1="19" x2="20" y2="19"></line>
-        </svg>
-        Activity & Dispatch Stream
+    <!-- Metrics Ribbon (Hero Stat Cards) -->
+    <div class="metrics-ribbon">
+      <div class="metric-card">
+        <div class="metric-info">
+          <span class="metric-label">System State</span>
+          <span class="metric-value" id="status-text">ACTIVE</span>
+        </div>
+        <span class="metric-pill pill-green" id="status-pill">ONLINE</span>
       </div>
-      <div class="terminal-actions">
-        <button type="button" class="terminal-action-btn" onclick="clearLogs()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-          Clear
-        </button>
-        <button type="button" class="terminal-action-btn" onclick="fetchLogs(true)">
-          <svg id="refresh-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <polyline points="1 20 1 14 7 14"></polyline>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-          </svg>
-          Refresh
-        </button>
+
+      <div class="metric-card">
+        <div class="metric-info">
+          <span class="metric-label">Cadence</span>
+          <span class="metric-value" id="metric-interval">30 MINS</span>
+        </div>
+        <span class="metric-pill pill-slate">AUTO CRON</span>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-info">
+          <span class="metric-label">Last Run Status</span>
+          <span class="metric-value" id="metric-last-status">SUCCESS</span>
+        </div>
+        <span class="metric-pill pill-orange" id="metric-last-time">READY</span>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-info">
+          <span class="metric-label">Slack Dispatch</span>
+          <span class="metric-value" id="metric-slack-target">CHANNEL</span>
+        </div>
+        <span class="metric-pill pill-slate">API S3</span>
       </div>
     </div>
-    <div class="terminal-content" id="log-output">
-      <div>[System] Initializing Operations Console...</div>
+
+    <!-- Main Hero Grid (Form + Console) -->
+    <div class="hero-grid">
+      <!-- Left Panel: Configuration Form -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            Operations Configuration
+          </div>
+          <span class="badge-subtle badge-orange-tag">GREYORANGE THEME</span>
+        </div>
+
+        <form id="bot-form" class="form-panel-body" onsubmit="event.preventDefault(); saveAll();">
+          <div class="form-section">
+            <!-- 1. Grafana URL -->
+            <div class="form-field">
+              <label class="form-label" for="GRAFANA_URL">
+                Grafana Target Dashboard Link
+              </label>
+              <div class="input-box">
+                <input type="text" id="GRAFANA_URL" class="input-field input-code" 
+                       placeholder="http://172.28.76.144:8088/d/xyz/dashboard?kiosk=tv">
+              </div>
+            </div>
+
+            <!-- 2. Auth Options: Token & Cookie -->
+            <div class="field-row">
+              <div class="form-field">
+                <label class="form-label" for="GRAFANA_API_TOKEN">
+                  Service Account Token
+                  <span class="badge-subtle badge-orange-tag">Option 1: API</span>
+                </label>
+                <div class="input-box">
+                  <input type="password" id="GRAFANA_API_TOKEN" class="input-field input-code" 
+                         placeholder="glsa_your_token_here">
+                  <button type="button" class="input-eye-btn" onclick="toggleVisibility('GRAFANA_API_TOKEN')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label class="form-label" for="GRAFANA_COOKIE">
+                  Session Cookie
+                  <span class="badge-subtle">Option 2: SSO Bypass</span>
+                </label>
+                <div class="input-box">
+                  <input type="password" id="GRAFANA_COOKIE" class="input-field input-code" 
+                         placeholder="grafana_session=abcdef...">
+                  <button type="button" class="input-eye-btn" onclick="toggleVisibility('GRAFANA_COOKIE')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Fallback Username & Password -->
+            <div class="field-row">
+              <div class="form-field">
+                <label class="form-label" for="GRAFANA_USERNAME">Fallback Username</label>
+                <input type="text" id="GRAFANA_USERNAME" class="input-field" placeholder="admin or email">
+              </div>
+              <div class="form-field">
+                <label class="form-label" for="GRAFANA_PASSWORD">Fallback Password</label>
+                <div class="input-box">
+                  <input type="password" id="GRAFANA_PASSWORD" class="input-field" placeholder="••••••••">
+                  <button type="button" class="input-eye-btn" onclick="toggleVisibility('GRAFANA_PASSWORD')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. Slack Credentials -->
+            <div class="field-row">
+              <div class="form-field">
+                <label class="form-label" for="SLACK_BOT_TOKEN">Slack Bot OAuth Token</label>
+                <div class="input-box">
+                  <input type="password" id="SLACK_BOT_TOKEN" class="input-field input-code" 
+                         placeholder="xoxb-your-slack-bot-token">
+                  <button type="button" class="input-eye-btn" onclick="toggleVisibility('SLACK_BOT_TOKEN')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="form-field">
+                <label class="form-label" for="SLACK_CHANNEL_ID">Slack Target Channel</label>
+                <input type="text" id="SLACK_CHANNEL_ID" class="input-field input-code" 
+                       placeholder="C0123456789 or channel URL">
+              </div>
+            </div>
+
+            <!-- 5. Message & Cadence -->
+            <div class="field-row" style="grid-template-columns: 2fr 1fr;">
+              <div class="form-field">
+                <label class="form-label" for="SLACK_MESSAGE">Alert Message Template</label>
+                <input type="text" id="SLACK_MESSAGE" class="input-field" 
+                       value="Grafana Snapshot Alert - {datetime}">
+              </div>
+              <div class="form-field">
+                <label class="form-label" for="SCHEDULE_INTERVAL_MINUTES">Interval (Mins)</label>
+                <input type="number" id="SCHEDULE_INTERVAL_MINUTES" class="input-field" value="30" min="1">
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Action Buttons (Fits strictly on screen) -->
+          <div class="form-actions-bar">
+            <button type="submit" class="btn btn-orange" id="btn-save">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+              Save Settings
+            </button>
+            <button type="button" class="btn btn-white" onclick="previewSnapshot()" id="btn-preview">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              Preview
+            </button>
+            <button type="button" class="btn btn-white" onclick="testSlack()" id="btn-slack">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+              Ping Slack
+            </button>
+            <button type="button" class="btn btn-dark" onclick="triggerRun()" id="btn-run">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary-orange)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              Run Now
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Right Panel: Activity Console -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+            Activity Stream Console
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn btn-white" style="height: 24px; font-size: 11px; padding: 0 8px; box-shadow: none;" onclick="clearLogs()">Clear</button>
+            <button type="button" class="btn btn-white" style="height: 24px; font-size: 11px; padding: 0 8px; box-shadow: none;" onclick="fetchLogs(true)">Refresh</button>
+          </div>
+        </div>
+
+        <div class="console-body" id="log-output">
+          <div>[System] GreyOrange Operations Center Initialized...</div>
+        </div>
+      </section>
     </div>
-  </div>
+  </main>
 </div>
 
 <!-- Preview Modal -->
 <div class="modal-backdrop" id="preview-modal" onclick="closeModal()">
   <div class="modal-box" onclick="event.stopPropagation()">
     <div class="modal-header">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-          <circle cx="12" cy="13" r="4"></circle>
-        </svg>
-        Headless Capture Preview
-      </div>
-      <button type="button" class="btn btn-secondary" style="padding: 5px 12px; font-size: 12px;" onclick="closeModal()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="6" x2="6" y2="18"></line>
-          <line x1="6" y1="6" x2="18" y2="18"></line>
-        </svg>
-        Close
-      </button>
+      <span>Headless Capture Preview</span>
+      <button type="button" class="btn btn-white" style="height: 26px; padding: 0 10px; font-size: 11px;" onclick="closeModal()">Close</button>
     </div>
     <div class="modal-body" id="modal-body"></div>
   </div>
@@ -1304,11 +1439,8 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
 <script>
   function showToast(msg, isError = false) {
     const t = document.getElementById("toast");
-    const icon = isError
-      ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f43f5e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>'
-      : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>';
-    t.innerHTML = icon + '<span>' + msg + '</span>';
-    t.style.borderLeftColor = isError ? "var(--accent-rose)" : "var(--primary)";
+    t.innerText = msg;
+    t.style.borderLeftColor = isError ? "var(--accent-red)" : "var(--primary-orange)";
     t.style.display = "flex";
     setTimeout(() => { t.style.display = "none"; }, 4000);
   }
@@ -1320,7 +1452,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
   }
 
   function clearLogs() {
-    document.getElementById("log-output").innerHTML = '<div style="color: var(--text-dim);">[Log cleared]</div>';
+    document.getElementById("log-output").innerHTML = '<div style="color: #71717a;">[Log cleared]</div>';
   }
 
   async function loadData() {
@@ -1332,9 +1464,15 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
         if (c.grafana_url) document.getElementById("GRAFANA_URL").value = c.grafana_url;
         if (c.grafana_token_set) document.getElementById("GRAFANA_API_TOKEN").value = "••••••••••••••••••••••••";
         if (c.grafana_cookie_set) document.getElementById("GRAFANA_COOKIE").value = "••••••••••••••••••••••••";
-        if (c.slack_channel_id) document.getElementById("SLACK_CHANNEL_ID").value = c.slack_channel_id;
+        if (c.slack_channel_id) {
+          document.getElementById("SLACK_CHANNEL_ID").value = c.slack_channel_id;
+          document.getElementById("metric-slack-target").innerText = c.slack_channel_id.substring(0, 10);
+        }
         if (c.slack_message) document.getElementById("SLACK_MESSAGE").value = c.slack_message;
-        if (c.interval) document.getElementById("SCHEDULE_INTERVAL_MINUTES").value = c.interval;
+        if (c.interval) {
+          document.getElementById("SCHEDULE_INTERVAL_MINUTES").value = c.interval;
+          document.getElementById("metric-interval").innerText = c.interval + " MINS";
+        }
         if (c.slack_token_set) document.getElementById("SLACK_BOT_TOKEN").value = "••••••••••••••••••••••••";
         if (c.grafana_username) document.getElementById("GRAFANA_USERNAME").value = c.grafana_username;
         if (c.grafana_password_set) document.getElementById("GRAFANA_PASSWORD").value = "••••••••••••••••";
@@ -1346,55 +1484,33 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
   function updateStatus(state) {
     if (!state) return;
     const text = document.getElementById("status-text");
-    const dot = document.querySelector(".status-dot");
-    const container = document.getElementById("status-badge-container");
+    const pill = document.getElementById("status-pill");
     const pauseBtn = document.getElementById("btn-pause-toggle");
     const pauseIcon = document.getElementById("pause-icon");
     const pauseText = document.getElementById("pause-btn-text");
+    const lastStat = document.getElementById("metric-last-status");
+    const lastTime = document.getElementById("metric-last-time");
+
+    if (state.last_status) lastStat.innerText = state.last_status.toUpperCase();
+    if (state.last_run_time) lastTime.innerText = state.last_run_time;
 
     if (state.is_paused) {
       pauseText.innerText = "Resume Scheduler";
       pauseIcon.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
-      pauseBtn.style.background = "rgba(16, 185, 129, 0.12)";
-      pauseBtn.style.color = "var(--primary)";
-      pauseBtn.style.borderColor = "rgba(16, 185, 129, 0.35)";
-
-      text.innerText = "Scheduler Paused";
-      container.style.background = "var(--amber-badge-bg)";
-      container.style.borderColor = "var(--amber-badge-border)";
-      container.style.color = "var(--amber-badge-text)";
-
-      dot.classList.remove("pulse");
-      dot.style.background = "var(--accent-amber)";
-      dot.style.boxShadow = "0 0 10px var(--accent-amber)";
+      text.innerText = "PAUSED";
+      pill.innerText = "STANDBY";
+      pill.className = "metric-pill pill-orange";
     } else {
       pauseText.innerText = "Pause Scheduler";
       pauseIcon.innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
-      pauseBtn.style.background = "#192230";
-      pauseBtn.style.color = "#e2e8f0";
-      pauseBtn.style.borderColor = "var(--border-strong)";
-
       if (state.is_running) {
-        text.innerText = "Capturing Snapshot...";
-        container.style.background = "rgba(6, 182, 212, 0.12)";
-        container.style.borderColor = "rgba(6, 182, 212, 0.35)";
-        container.style.color = "#38bdf8";
-
-        dot.classList.add("pulse");
-        dot.style.background = "#38bdf8";
-        dot.style.boxShadow = "0 0 10px #38bdf8";
+        text.innerText = "CAPTURING";
+        pill.innerText = "BUSY";
+        pill.className = "metric-pill pill-orange";
       } else {
-        text.innerText = state.last_status === "Success" 
-          ? (state.last_run_time ? "Idle (Last: " + state.last_run_time + ")" : "Active & Ready")
-          : (state.last_status ? "Status: " + state.last_status : "Active & Ready");
-        
-        container.style.background = "var(--emerald-badge-bg)";
-        container.style.borderColor = "var(--emerald-badge-border)";
-        container.style.color = "var(--emerald-badge-text)";
-
-        dot.classList.add("pulse");
-        dot.style.background = "var(--primary)";
-        dot.style.boxShadow = "0 0 10px var(--primary)";
+        text.innerText = "ACTIVE";
+        pill.innerText = "ONLINE";
+        pill.className = "metric-pill pill-green";
       }
     }
   }
@@ -1408,7 +1524,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
         poll();
       }
     } catch(e) {
-      showToast("Failed to toggle scheduler pause state", true);
+      showToast("Failed to toggle scheduler state", true);
     }
   }
 
@@ -1436,29 +1552,17 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
       SCHEDULE_INTERVAL_MINUTES: interval
     };
 
-    if (gToken && !gToken.startsWith("••••")) {
-      payload.GRAFANA_API_TOKEN = gToken;
-    } else if (gToken === "") {
-      payload.GRAFANA_API_TOKEN = "";
-    }
+    if (gToken && !gToken.startsWith("••••")) payload.GRAFANA_API_TOKEN = gToken;
+    else if (gToken === "") payload.GRAFANA_API_TOKEN = "";
 
-    if (gCookie && !gCookie.startsWith("••••")) {
-      payload.GRAFANA_COOKIE = gCookie;
-    } else if (gCookie === "") {
-      payload.GRAFANA_COOKIE = "";
-    }
+    if (gCookie && !gCookie.startsWith("••••")) payload.GRAFANA_COOKIE = gCookie;
+    else if (gCookie === "") payload.GRAFANA_COOKIE = "";
 
-    if (gPass && !gPass.startsWith("••••")) {
-      payload.GRAFANA_PASSWORD = gPass;
-    } else if (gPass === "") {
-      payload.GRAFANA_PASSWORD = "";
-    }
+    if (gPass && !gPass.startsWith("••••")) payload.GRAFANA_PASSWORD = gPass;
+    else if (gPass === "") payload.GRAFANA_PASSWORD = "";
 
-    if (token && !token.startsWith("••••")) {
-      payload.SLACK_BOT_TOKEN = token;
-    } else if (token === "") {
-      payload.SLACK_BOT_TOKEN = "";
-    }
+    if (token && !token.startsWith("••••")) payload.SLACK_BOT_TOKEN = token;
+    else if (token === "") payload.SLACK_BOT_TOKEN = "";
 
     try {
       const res = await fetch("/api/settings", {
@@ -1468,7 +1572,9 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
       });
       const data = await res.json();
       if (data.success) {
-        showToast("Settings saved and synced to environment.");
+        showToast("Configuration saved and applied.");
+        document.getElementById("metric-interval").innerText = interval + " MINS";
+        if (channel) document.getElementById("metric-slack-target").innerText = channel.substring(0, 10);
         fetchLogs();
       } else {
         showToast(data.error || "Failed to update configuration", true);
@@ -1492,7 +1598,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
 
     const modal = document.getElementById("preview-modal");
     const body = document.getElementById("modal-body");
-    body.innerHTML = "<div style='color: var(--text-muted); padding: 36px 20px;'><div style='display:inline-block; margin-bottom:12px;'><svg width='28' height='28' viewBox='0 0 24 24' fill='none' stroke='var(--primary)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 6 12 12 16 14'></polyline></svg></div><p style='font-size:13.5px;'>Rendering dashboard in headless Chromium...</p></div>";
+    body.innerHTML = "<div style='padding: 30px;'><p style='font-size:14px; font-weight:600;'>Rendering dashboard in headless Chromium...</p></div>";
     modal.style.display = "flex";
 
     try {
@@ -1509,12 +1615,12 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
       });
       const data = await res.json();
       if (data.success) {
-        body.innerHTML = `<img src="${data.image_url}?t=${Date.now()}"><div style="color:var(--emerald-badge-text); font-size:12px; margin-top:12px; display:flex; align-items:center; justify-content:center; gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg><span>${data.message}</span></div>`;
+        body.innerHTML = `<img src="${data.image_url}?t=${Date.now()}"><div style="color:var(--accent-green); font-size:12px; font-weight:700; margin-top:10px;">${data.message}</div>`;
       } else {
-        body.innerHTML = `<div style="color: var(--accent-rose); padding: 24px; font-size: 13.5px;">Capture Failed: ${data.error}</div>`;
+        body.innerHTML = `<div style="color: var(--accent-red); padding: 20px; font-weight:600;">Capture Failed: ${data.error}</div>`;
       }
     } catch(e) {
-      body.innerHTML = "<div style='color: var(--accent-rose); padding: 24px; font-size: 13.5px;'>Network error encountered during capture test.</div>";
+      body.innerHTML = "<div style='color: var(--accent-red); padding: 20px; font-weight:600;'>Network error during capture test.</div>";
     }
     fetchLogs();
   }
@@ -1523,7 +1629,6 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
     document.getElementById("preview-modal").style.display = "none";
   }
 
-  // Allow closing modal via ESC key
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeModal();
   });
@@ -1531,18 +1636,18 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
   async function testSlack() {
     const btn = document.getElementById("btn-slack");
     btn.disabled = true;
-    const origHTML = btn.innerHTML;
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> Testing...';
+    const origText = btn.innerText;
+    btn.innerText = "Pinging...";
     try {
       const res = await fetch("/api/test-slack", { method: "POST" });
       const data = await res.json();
       if (data.success) showToast(data.message);
       else showToast("Slack Error: " + data.error, true);
     } catch(e) {
-      showToast("Slack ping failed to dispatch", true);
+      showToast("Slack ping failed", true);
     } finally {
       btn.disabled = false;
-      btn.innerHTML = origHTML;
+      btn.innerText = origText;
       fetchLogs();
     }
   }
@@ -1550,28 +1655,22 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
   async function triggerRun() {
     const btn = document.getElementById("btn-run");
     btn.disabled = true;
-    const origHTML = btn.innerHTML;
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> Initiating...';
+    const origText = btn.innerText;
+    btn.innerText = "Running...";
     try {
       const res = await fetch("/api/trigger", { method: "POST" });
       const data = await res.json();
-      if (data.success) showToast("Capture task dispatched. Check activity stream.");
-      else showToast("Run trigger failed: " + data.error, true);
+      if (data.success) showToast("Capture task dispatched.");
+      else showToast("Run failed: " + data.error, true);
     } catch(e) {
       showToast("Unable to trigger immediate execution", true);
     } finally {
-      setTimeout(() => { btn.disabled = false; btn.innerHTML = origHTML; }, 2500);
+      setTimeout(() => { btn.disabled = false; btn.innerText = origText; }, 2500);
       poll();
     }
   }
 
   async function fetchLogs(animate = false) {
-    const refreshIcon = document.getElementById("refresh-icon");
-    if (animate && refreshIcon) {
-      refreshIcon.style.transform = "rotate(180deg)";
-      refreshIcon.style.transition = "transform 0.4s ease";
-      setTimeout(() => { refreshIcon.style.transform = "none"; }, 400);
-    }
     try {
       const res = await fetch("/api/logs");
       const data = await res.json();
@@ -1579,10 +1678,9 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
       terminal.innerHTML = "";
       (data.logs || []).forEach(l => {
         const div = document.createElement("div");
-        // Colorize log tags
-        if (l.includes("[ERROR]") || l.includes("Failed") || l.includes("Error")) {
+        if (l.includes("[ERROR]") || l.includes("Failed")) {
           div.className = "log-error";
-        } else if (l.includes("[SUCCESS]") || l.includes("Uploaded") || l.includes("saved") || l.includes("Connected")) {
+        } else if (l.includes("[SUCCESS]") || l.includes("Uploaded") || l.includes("saved")) {
           div.className = "log-success";
         } else if (l.includes("[WARN]")) {
           div.className = "log-warn";
