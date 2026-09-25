@@ -195,21 +195,7 @@ class GrafanaCapture:
     def _prepare_url(self, raw_url):
         if not raw_url:
             return ""
-        url = raw_url.strip()
-        frag = ""
-        if "#" in url:
-            url, frag = url.split("#", 1)
-            frag = f"#{frag}"
-
-        # Non-destructively append kiosk & theme without re-encoding existing variables ($__all, etc.)
-        if "/d-solo/" not in url and "kiosk" not in url:
-            sep = "&" if "?" in url else "?"
-            url = f"{url}{sep}kiosk=tv"
-        if "theme=" not in url:
-            theme_val = getattr(self.cfg, "GRAFANA_THEME", "dark") or "dark"
-            sep = "&" if "?" in url else "?"
-            url = f"{url}{sep}theme={theme_val}"
-        return f"{url}{frag}"
+        return raw_url.strip()
 
     def capture_screenshot(self, target_url=None, output_path=None, username=None, password=None, token=None, cookie=None):
         url_to_capture = target_url or self.cfg.GRAFANA_URL
