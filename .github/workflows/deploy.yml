@@ -5,27 +5,100 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      warp_action:
+        description: 'WARP Action'
+        required: true
+        default: 'reconnect_with_ssh_fix'
+        type: choice
+        options:
+          - 'reconnect_with_ssh_fix'
+          - 'disconnect_only'
+          - 'status'
 
 jobs:
   deploy:
     runs-on: [self-hosted, Linux, X64]
 
     steps:
+      - name: Fix SSH Routing and Configure Cloudflare WARP
+        run: |
+          echo "🔧 Managing Cloudflare WARP & Policy Routing..."
+          ACTION="${{ github.event.inputs.warp_action || 'reconnect_with_ssh_fix' }}"
+
+          # Disconnect WARP temporarily to restore default routing
+          warp-cli disconnect || true
+          sleep 2
+
+          if [ "$ACTION" = "disconnect_only" ]; then
+            echo "🛑 WARP disconnected. Standard networking restored."
+            warp-cli status || true
+          else
+            echo "⚙️ Configuring policy routing so SSH and Web UI coexist with VPN..."
+            
+            # Detect primary interface
+            PRIMARY_IFACE=$(ip -4 route show default | grep -v 'Cloudflare' | awk '{print $5}' | head -n1)
+            if [ -z "$PRIMARY_IFACE" ]; then
+              PRIMARY_IFACE=$(ip -o -4 addr list | grep '172.27.160.170' | awk '{print $2}' | head -n1)
+            fi
+            [ -z "$PRIMARY_IFACE" ] && PRIMARY_IFACE="eth0"
+
+            # Detect gateway IP
+            GATEWAY_IP=$(ip -4 route show default dev "$PRIMARY_IFACE" | awk '{print $3}' | head -n1)
+            if [ -z "$GATEWAY_IP" ]; then
+              GATEWAY_IP=$(ip -4 route show default | grep -v 'Cloudflare' | awk '{print $3}' | head -n1)
+            fi
+
+            # Detect VM local IP
+            VM_LOCAL_IP=$(ip -4 addr show dev "$PRIMARY_IFACE" | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)
+            [ -z "$VM_LOCAL_IP" ] && VM_LOCAL_IP="172.27.160.170"
+
+            echo "Detected Interface: $PRIMARY_IFACE | Local IP: $VM_LOCAL_IP | Gateway: $GATEWAY_IP"
+
+            # Enable loose reverse path filtering so asymmetric routing packets are not dropped
+            sudo sysctl -w net.ipv4.conf.all.rp_filter=2 || true
+            sudo sysctl -w net.ipv4.conf.default.rp_filter=2 || true
+            sudo sysctl -w "net.ipv4.conf.${PRIMARY_IFACE}.rp_filter=2" || true
+
+            if [ -n "$GATEWAY_IP" ] && [ -n "$VM_LOCAL_IP" ]; then
+              sudo ip rule del priority 100 2>/dev/null || true
+              sudo ip rule add from "$VM_LOCAL_IP"/32 table 100 priority 100
+              sudo ip route replace default via "$GATEWAY_IP" dev "$PRIMARY_IFACE" table 100
+              echo "✅ Rule added: Inbound traffic to $VM_LOCAL_IP will always reply directly via $PRIMARY_IFACE."
+            fi
+
+            echo "🔌 Reconnecting Cloudflare WARP..."
+            warp-cli connect || true
+            sleep 3
+            warp-cli status || true
+          fi
+
       - name: Deploy and restart container on VM
         run: |
           echo "🚀 Updating Headless Bot on Cloud VM via cac-automation runner..."
-          if [ -d "/AUTO BOT" ]; then
-            cd "/AUTO BOT"
-          elif [ -d "$HOME/headless-bot" ]; then
-            cd "$HOME/headless-bot"
-          elif [ -d "/home/ubuntu/headless-bot" ]; then
-            cd "/home/ubuntu/headless-bot"
+          
+          TARGET_DIR=""
+          for candidate in "/AUTO BOT" "$HOME/headless-bot" "$HOME/Auto_BOT" "/home/ubuntu/headless-bot" "/home/aditya_s_ctr_greyorange_com/headless-bot" "/home/aditya_s_ctr_greyorange_com/Auto_BOT"; do
+            if [ -d "$candidate" ] && [ -f "$candidate/docker-compose.yml" ]; then
+              TARGET_DIR="$candidate"
+              break
+            fi
+          done
+
+          if [ -n "$TARGET_DIR" ]; then
+            cd "$TARGET_DIR"
           else
-            echo "Current working directory: $(pwd)"
+            FOUND=$(find "$HOME" -maxdepth 3 -name "docker-compose.yml" 2>/dev/null | head -n1)
+            if [ -n "$FOUND" ]; then
+              cd "$(dirname "$FOUND")"
+            else
+              echo "Current working directory: $(pwd)"
+            fi
           fi
 
           echo "📁 Deploying in: $(pwd)"
-          git pull origin main
+          git fetch origin main || true
+          git reset --hard origin/main || git pull origin main
           [ -f .env ] || cp .env.example .env
           docker compose up -d --build
           echo "✅ Deployment complete! Container status:"
