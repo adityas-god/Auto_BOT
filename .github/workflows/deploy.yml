@@ -21,57 +21,20 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
 
     steps:
-      - name: Fix SSH Routing and Configure Cloudflare WARP
+      - name: Disconnect WARP and Restore Standard Networking
         run: |
-          echo "🔧 Managing Cloudflare WARP & Policy Routing..."
-          ACTION="${{ github.event.inputs.warp_action || 'reconnect_with_ssh_fix' }}"
-
-          # Disconnect WARP temporarily to restore default routing
+          echo "🛑 Disconnecting Cloudflare WARP to restore SSH..."
           warp-cli disconnect || true
-          sleep 2
-
-          if [ "$ACTION" = "disconnect_only" ]; then
-            echo "🛑 WARP disconnected. Standard networking restored."
-            warp-cli status || true
-          else
-            echo "⚙️ Configuring policy routing so SSH and Web UI coexist with VPN..."
-            
-            # Detect primary interface
-            PRIMARY_IFACE=$(ip -4 route show default | grep -v 'Cloudflare' | awk '{print $5}' | head -n1)
-            if [ -z "$PRIMARY_IFACE" ]; then
-              PRIMARY_IFACE=$(ip -o -4 addr list | grep '172.27.160.170' | awk '{print $2}' | head -n1)
-            fi
-            [ -z "$PRIMARY_IFACE" ] && PRIMARY_IFACE="eth0"
-
-            # Detect gateway IP
-            GATEWAY_IP=$(ip -4 route show default dev "$PRIMARY_IFACE" | awk '{print $3}' | head -n1)
-            if [ -z "$GATEWAY_IP" ]; then
-              GATEWAY_IP=$(ip -4 route show default | grep -v 'Cloudflare' | awk '{print $3}' | head -n1)
-            fi
-
-            # Detect VM local IP
-            VM_LOCAL_IP=$(ip -4 addr show dev "$PRIMARY_IFACE" | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1)
-            [ -z "$VM_LOCAL_IP" ] && VM_LOCAL_IP="172.27.160.170"
-
-            echo "Detected Interface: $PRIMARY_IFACE | Local IP: $VM_LOCAL_IP | Gateway: $GATEWAY_IP"
-
-            # Enable loose reverse path filtering so asymmetric routing packets are not dropped
-            sudo sysctl -w net.ipv4.conf.all.rp_filter=2 || true
-            sudo sysctl -w net.ipv4.conf.default.rp_filter=2 || true
-            sudo sysctl -w "net.ipv4.conf.${PRIMARY_IFACE}.rp_filter=2" || true
-
-            if [ -n "$GATEWAY_IP" ] && [ -n "$VM_LOCAL_IP" ]; then
-              sudo ip rule del priority 100 2>/dev/null || true
-              sudo ip rule add from "$VM_LOCAL_IP"/32 table 100 priority 100
-              sudo ip route replace default via "$GATEWAY_IP" dev "$PRIMARY_IFACE" table 100
-              echo "✅ Rule added: Inbound traffic to $VM_LOCAL_IP will always reply directly via $PRIMARY_IFACE."
-            fi
-
-            echo "🔌 Reconnecting Cloudflare WARP..."
-            warp-cli connect || true
-            sleep 3
-            warp-cli status || true
-          fi
+          sleep 3
+          echo "=== WARP Status ==="
+          warp-cli status || true
+          echo "=== IP Addresses ==="
+          ip -4 addr
+          echo "=== Routing Table ==="
+          ip -4 route show
+          echo "=== Policy Rules ==="
+          ip rule show
+          echo "✅ WARP is disconnected. SSH to 172.27.160.170 is restored!"
 
       - name: Deploy and restart container on VM
         run: |
