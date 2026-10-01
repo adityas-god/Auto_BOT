@@ -129,6 +129,27 @@ class Config:
         return val
 
     @classmethod
+    def parse_thread_ts(cls, raw_input):
+        val = str(raw_input or "").strip()
+        if not val:
+            return ""
+        if "thread_ts=" in val:
+            parts = val.split("thread_ts=", 1)[1].split("&")[0].strip()
+            if parts:
+                return parts
+        if "/archives/" in val and "/p" in val:
+            p_part = val.split("/archives/", 1)[1].split("?")[0].strip("/").split("/")[-1]
+            if p_part.startswith("p") and len(p_part) > 7:
+                digits = p_part[1:]
+                return f"{digits[:-6]}.{digits[-6:]}"
+        if val.startswith("p") and val[1:].replace(".", "").isdigit() and len(val) > 7:
+            digits = val[1:]
+            if "." in digits:
+                return digits
+            return f"{digits[:-6]}.{digits[-6:]}"
+        return val
+
+    @classmethod
     def save_settings(cls, settings_dict):
         # Synchronize SLACK_MESSAGE and SLACK_MESSAGE_TEMPLATE
         if "SLACK_MESSAGE" in settings_dict:
@@ -1359,6 +1380,13 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
                        placeholder="C0123456789 or channel URL">
               </div>
             </div>
+            <div class="field-row" style="grid-template-columns: 1fr;">
+              <div class="form-field">
+                <label class="form-label" for="SLACK_THREAD_TS">Slack Thread (Optional)</label>
+                <input type="text" id="SLACK_THREAD_TS" class="input-field input-code" 
+                       placeholder="e.g. 1783950460.340209 or paste Slack thread link">
+              </div>
+            </div>
 
             <!-- 5. Message & Cadence -->
             <div class="field-row" style="grid-template-columns: 2fr 1fr;">
@@ -1462,6 +1490,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
           document.getElementById("SLACK_CHANNEL_ID").value = c.slack_channel_id;
           document.getElementById("metric-slack-target").innerText = c.slack_channel_id.substring(0, 10);
         }
+        if (c.slack_thread_ts) document.getElementById("SLACK_THREAD_TS").value = c.slack_thread_ts;
         if (c.slack_message) document.getElementById("SLACK_MESSAGE").value = c.slack_message;
         if (c.interval) {
           document.getElementById("SCHEDULE_INTERVAL_MINUTES").value = c.interval;
@@ -1530,6 +1559,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
     const gPass = document.getElementById("GRAFANA_PASSWORD").value.trim();
     const token = document.getElementById("SLACK_BOT_TOKEN").value.trim();
     const channel = document.getElementById("SLACK_CHANNEL_ID").value.trim();
+    const threadTs = document.getElementById("SLACK_THREAD_TS").value.trim();
     const message = document.getElementById("SLACK_MESSAGE").value.trim();
     const interval = document.getElementById("SCHEDULE_INTERVAL_MINUTES").value.trim();
 
@@ -1542,6 +1572,7 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
       GRAFANA_URL: grafanaUrl,
       GRAFANA_USERNAME: gUser,
       SLACK_CHANNEL_ID: channel,
+      SLACK_THREAD_TS: threadTs,
       SLACK_MESSAGE: message,
       SCHEDULE_INTERVAL_MINUTES: interval
     };
@@ -1732,6 +1763,7 @@ def get_status():
             "grafana_username": Config.GRAFANA_USERNAME,
             "grafana_password_set": bool(Config.GRAFANA_PASSWORD),
             "slack_channel_id": Config.SLACK_CHANNEL_ID,
+            "slack_thread_ts": Config.SLACK_THREAD_TS,
             "slack_message": Config.SLACK_MESSAGE,
             "interval": Config.SCHEDULE_INTERVAL_MINUTES,
             "slack_token_set": bool(Config.SLACK_BOT_TOKEN)
@@ -1768,6 +1800,10 @@ def update_settings():
     if "SLACK_CHANNEL_ID" in data:
         raw_chan = str(data["SLACK_CHANNEL_ID"]).strip()
         updates["SLACK_CHANNEL_ID"] = Config.parse_channel_id(raw_chan)
+
+    if "SLACK_THREAD_TS" in data:
+        raw_thread = str(data["SLACK_THREAD_TS"]).strip()
+        updates["SLACK_THREAD_TS"] = Config.parse_thread_ts(raw_thread)
 
     if "SLACK_MESSAGE" in data:
         updates["SLACK_MESSAGE"] = str(data["SLACK_MESSAGE"]).strip()
