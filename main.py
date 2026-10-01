@@ -77,6 +77,7 @@ class Config:
     VIEWPORT_HEIGHT = safe_int(os.getenv("VIEWPORT_HEIGHT"), 1080)
     PAGE_LOAD_WAIT_SECONDS = safe_int(os.getenv("PAGE_LOAD_WAIT_SECONDS"), 8)
     GRAFANA_THEME = os.getenv("GRAFANA_THEME", "dark").strip() or "dark"
+    HTTP_PROXY = os.getenv("HTTP_PROXY", "").strip()
     WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0").strip() or "0.0.0.0"
     WEB_PORT = safe_int(os.getenv("WEB_PORT"), 5000)
 
@@ -101,6 +102,7 @@ class Config:
         cls.VIEWPORT_HEIGHT = safe_int(os.getenv("VIEWPORT_HEIGHT"), 1080)
         cls.PAGE_LOAD_WAIT_SECONDS = safe_int(os.getenv("PAGE_LOAD_WAIT_SECONDS"), 8)
         cls.GRAFANA_THEME = os.getenv("GRAFANA_THEME", "dark").strip() or "dark"
+        cls.HTTP_PROXY = os.getenv("HTTP_PROXY", "").strip()
         cls.WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0").strip() or "0.0.0.0"
         cls.WEB_PORT = safe_int(os.getenv("WEB_PORT"), 5000)
 
@@ -228,20 +230,26 @@ class GrafanaCapture:
         origin_url = f"{parsed_origin.scheme}://{parsed_origin.netloc}"
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True,
-                args=[
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--hide-scrollbars",
-                    "--mute-audio",
-                    "--ignore-certificate-errors",
-                    "--disable-web-security",
-                    "--disable-blink-features=AutomationControlled"
-                ]
-            )
+            launch_args = [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--hide-scrollbars",
+                "--mute-audio",
+                "--ignore-certificate-errors",
+                "--disable-web-security",
+                "--disable-blink-features=AutomationControlled"
+            ]
+            launch_kwargs = {
+                "headless": True,
+                "args": launch_args
+            }
+            if getattr(self.cfg, "HTTP_PROXY", None) and self.cfg.HTTP_PROXY.strip():
+                launch_kwargs["proxy"] = {"server": self.cfg.HTTP_PROXY.strip()}
+                bot_log(f"🔌 Using proxy for browser navigation: {self.cfg.HTTP_PROXY.strip()}")
+
+            browser = p.chromium.launch(**launch_kwargs)
 
             context = browser.new_context(
                 viewport={
