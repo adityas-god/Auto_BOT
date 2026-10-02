@@ -3589,39 +3589,40 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
       btn.innerHTML = "Saving...";
     }
 
-    const payload = {
-      name: document.getElementById("site_name").value.trim(),
-      interval_minutes: document.getElementById("interval_minutes").value,
-      grafana_url: document.getElementById("grafana_url").value.trim(),
-      grafana_username: document.getElementById("grafana_username").value.trim(),
-      grafana_password: document.getElementById("grafana_password").value.trim(),
-      grafana_token: document.getElementById("grafana_token") ? document.getElementById("grafana_token").value.trim() : (site.grafana_token || ""),
-      slack_channel_id: document.getElementById("slack_channel_id").value.trim(),
-      slack_thread_ts: document.getElementById("slack_thread_ts").value.trim(),
-      slack_message: document.getElementById("slack_message").value.trim(),
-      threshold_enabled: document.getElementById("threshold_enabled").checked,
-      threshold_metric_type: document.getElementById("threshold_metric_type").value,
-      threshold_operator: document.getElementById("threshold_operator").value,
-      threshold_value: document.getElementById("threshold_value").value.trim(),
-      threshold_keywords: document.getElementById("threshold_keywords").value.trim(),
-      threshold_colors: document.getElementById("threshold_colors").value.trim(),
-      threshold_breach_users: document.getElementById("threshold_breach_users").value.trim(),
-      threshold_only_alert_on_breach: document.getElementById("threshold_only_alert_on_breach").checked,
-      shift_morning_hours: document.getElementById("shift_morning_hours").value.trim(),
-      shift_morning_users: document.getElementById("shift_morning_users").value.trim(),
-      shift_afternoon_hours: document.getElementById("shift_afternoon_hours").value.trim(),
-      shift_afternoon_users: document.getElementById("shift_afternoon_users").value.trim(),
-      shift_night_hours: document.getElementById("shift_night_hours").value.trim(),
-      shift_night_users: document.getElementById("shift_night_users").value.trim(),
-      shift_tag_channel: document.getElementById("shift_tag_channel").checked,
-      shift_send_dm: document.getElementById("shift_send_dm").checked
-    };
-
     try {
+      const currentSiteObj = ALL_SITES.find(s => s.id === CURRENT_SITE_ID) || {};
+      const payload = {
+        name: document.getElementById("site_name") ? document.getElementById("site_name").value.trim() : "",
+        interval_minutes: document.getElementById("interval_minutes") ? document.getElementById("interval_minutes").value : "30",
+        grafana_url: document.getElementById("grafana_url") ? document.getElementById("grafana_url").value.trim() : "",
+        grafana_username: document.getElementById("grafana_username") ? document.getElementById("grafana_username").value.trim() : "",
+        grafana_password: document.getElementById("grafana_password") ? document.getElementById("grafana_password").value.trim() : "",
+        grafana_token: document.getElementById("grafana_token") ? document.getElementById("grafana_token").value.trim() : (currentSiteObj.grafana_token || ""),
+        slack_channel_id: document.getElementById("slack_channel_id") ? document.getElementById("slack_channel_id").value.trim() : "",
+        slack_thread_ts: document.getElementById("slack_thread_ts") ? document.getElementById("slack_thread_ts").value.trim() : "",
+        slack_message: document.getElementById("slack_message") ? document.getElementById("slack_message").value.trim() : "",
+        threshold_enabled: document.getElementById("threshold_enabled") ? document.getElementById("threshold_enabled").checked : false,
+        threshold_metric_type: document.getElementById("threshold_metric_type") ? document.getElementById("threshold_metric_type").value : "row_count",
+        threshold_operator: document.getElementById("threshold_operator") ? document.getElementById("threshold_operator").value : ">",
+        threshold_value: document.getElementById("threshold_value") ? document.getElementById("threshold_value").value.trim() : "0",
+        threshold_keywords: document.getElementById("threshold_keywords") ? document.getElementById("threshold_keywords").value.trim() : "",
+        threshold_colors: document.getElementById("threshold_colors") ? document.getElementById("threshold_colors").value.trim() : "",
+        threshold_breach_users: document.getElementById("threshold_breach_users") ? document.getElementById("threshold_breach_users").value.trim() : "",
+        threshold_only_alert_on_breach: document.getElementById("threshold_only_alert_on_breach") ? document.getElementById("threshold_only_alert_on_breach").checked : false,
+        shift_morning_hours: document.getElementById("shift_morning_hours") ? document.getElementById("shift_morning_hours").value.trim() : "",
+        shift_morning_users: document.getElementById("shift_morning_users") ? document.getElementById("shift_morning_users").value.trim() : "",
+        shift_afternoon_hours: document.getElementById("shift_afternoon_hours") ? document.getElementById("shift_afternoon_hours").value.trim() : "",
+        shift_afternoon_users: document.getElementById("shift_afternoon_users") ? document.getElementById("shift_afternoon_users").value.trim() : "",
+        shift_night_hours: document.getElementById("shift_night_hours") ? document.getElementById("shift_night_hours").value.trim() : "",
+        shift_night_users: document.getElementById("shift_night_users") ? document.getElementById("shift_night_users").value.trim() : "",
+        shift_tag_channel: document.getElementById("shift_tag_channel") ? document.getElementById("shift_tag_channel").checked : false,
+        shift_send_dm: document.getElementById("shift_send_dm") ? document.getElementById("shift_send_dm").checked : false
+      };
+
       const res = await fetch(`/api/sites/${CURRENT_SITE_ID}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: json_stringify_safe(payload)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (data.success) {
@@ -3633,12 +3634,13 @@ HTML_TEMPLATE = r'''<!DOCTYPE html>
         return false;
       }
     } catch(e) {
+      console.error("Save site error:", e);
       if (!silent) showToast("Network error while saving site", true);
       return false;
     } finally {
       if (!silent && btn) {
         btn.disabled = false;
-        btn.innerHTML = orig;
+        btn.innerHTML = orig || "Save Site Settings";
       }
     }
   }
