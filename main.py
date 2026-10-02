@@ -481,7 +481,7 @@ class SiteManager:
                             if last_ts and (now_ts - last_ts < interval_sec):
                                 next_due = last_ts + interval_sec
                             else:
-                                next_due = now_ts + interval_sec
+                                next_due = now_ts
                             stat = "Idle"
 
                         cls._site_states[sid] = {
@@ -986,8 +986,8 @@ class SiteManager:
                         if new_val:
                             st["next_run_due"] = 0
                         else:
-                            interval_sec = max(60, safe_int(s.get("interval_minutes"), 30) * 60)
-                            st["next_run_due"] = time.time() + interval_sec
+                            # Start IMMEDIATELY upon activation so user gets an instant snapshot!
+                            st["next_run_due"] = time.time()
                     cls._save_data_no_lock()
                     log_msg = f"[INFO] Site '{s['name']}' ({site_id}) monitoring is now {'PAUSED' if new_val else 'STARTED (ACTIVE)'}. Other sites unaffected."
                     found = True
