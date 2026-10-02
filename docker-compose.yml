@@ -8,5 +8,6 @@ services:
     network_mode: "host"
     volumes:
       - ./.env:/app/.env
+      - ./sites.json:/app/sites.json
     environment:
       - PYTHONUNBUFFERED=1

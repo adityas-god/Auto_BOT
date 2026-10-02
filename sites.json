@@ -1,0 +1,89 @@
+{
+  "global_settings": {
+    "slack_bot_token": "",
+    "timezone": "Asia/Kolkata",
+    "web_host": "0.0.0.0",
+    "web_port": 5000,
+    "http_proxy": "",
+    "viewport_width": 1920,
+    "viewport_height": 1080,
+    "page_load_wait_seconds": 8,
+    "grafana_theme": "dark"
+  },
+  "sites": [
+    {
+      "id": "site_1790903284",
+      "name": "GXO NIKE R2R",
+      "enabled": true,
+      "paused": true,
+      "interval_minutes": 30,
+      "grafana_url": "http://172.19.40.56:3000/d/yEUmsdv22dk13/outbound-dashboard?viewPanel=46&orgId=4&from=now-30m&to=now",
+      "grafana_username": "Gor",
+      "grafana_password": "Gorgraphana@123",
+      "grafana_token": "",
+      "slack_channel_id": "C060WECJEBZ",
+      "slack_thread_ts": "1783950460.340209",
+      "slack_message": "*Grafana Snapshot Alert* - {datetime}",
+      "threshold": {
+        "enabled": true,
+        "metric_type": "number_val",
+        "operator": ">",
+        "value": "14",
+        "keywords": "",
+        "colors": "red, orange, yellow",
+        "breach_users": "U0BMU642EHG",
+        "only_alert_on_breach": false
+      },
+      "shifts": {
+        "morning_hours": "06:00-14:00",
+        "morning_users": "U0BMU642EHG",
+        "afternoon_hours": "14:00-22:00",
+        "afternoon_users": "",
+        "night_hours": "22:00-06:00",
+        "night_users": "",
+        "tag_channel": true,
+        "send_dm": true
+      },
+      "last_run_time": "2026-10-02 18:16:28",
+      "last_run_ts": 1790945188.7940874,
+      "last_status": "Success"
+    },
+    {
+      "id": "site_1790903753",
+      "name": "FHR AGING ORDERS",
+      "enabled": true,
+      "paused": true,
+      "interval_minutes": 30,
+      "grafana_url": "http://172.28.76.144:8088/",
+      "grafana_username": "Gor",
+      "grafana_password": "Gorgraphana@123",
+      "grafana_token": "",
+      "slack_channel_id": "C047DDG3RFU",
+      "slack_thread_ts": "",
+      "slack_message": "TEST MESSAGES FOR TAG CHECKING",
+      "threshold": {
+        "enabled": true,
+        "metric_type": "keyword",
+        "operator": ">",
+        "value": "",
+        "keywords": "RED FLAG",
+        "colors": "red, orange, yellow",
+        "breach_users": "U0BMU642EHG,U0BHPUH1GMQ",
+        "only_alert_on_breach": true
+      },
+      "shifts": {
+        "morning_hours": "06:00-14:00",
+        "morning_users": "",
+        "afternoon_hours": "14:00-22:00",
+        "afternoon_users": "U0BMU642EHG,U0BHPUH1GMQ",
+        "night_hours": "22:00-06:00",
+        "night_users": "",
+        "tag_channel": true,
+        "send_dm": true
+      },
+      "last_run_time": "2026-10-02 18:32:54",
+      "last_run_ts": 1790946174.734878,
+      "last_status": "Success"
+    }
+  ]
+}

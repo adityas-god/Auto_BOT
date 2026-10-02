@@ -11,7 +11,7 @@ echo "=========================================================="
 # 1. Update package list and install system prerequisites
 echo "📦 Installing system dependencies..."
 sudo apt-get update -y
-sudo apt-get install -y python3 python3-venv python3-pip curl ca-certificates
+sudo apt-get install -y python3 python3-venv python3-pip curl ca-certificates tesseract-ocr tesseract-ocr-eng
 
 # 2. Set up Python virtual environment
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
