@@ -205,9 +205,18 @@ def evaluate_threshold(extraction_data, threshold_cfg=None):
     # Check 4: Alert Keywords
     if metric_type in ("keyword", "any"):
         for kw in keywords:
+            if not kw:
+                continue
+            # A. Exact substring match
             if kw in all_text:
                 breached = True
                 reasons.append(f"Alert keyword '{kw}' found in dashboard")
+                continue
+            # B. Multi-word phrase match where all individual words are present in dashboard
+            kw_tokens = [w.strip() for w in kw.split() if len(w.strip()) >= 3]
+            if len(kw_tokens) > 1 and all(token in all_text for token in kw_tokens):
+                breached = True
+                reasons.append(f"Alert keyword terms '{', '.join(kw_tokens)}' found in dashboard")
 
     # Check 5: Alert Colors
     if metric_type in ("color_status", "any"):
