@@ -1,0 +1,3602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GreyOrange OpsBot — Multi-Site Operations Center</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='8' fill='%23ff5a00'/%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M20 9C14.48 9 10 13.48 10 19c0 5.52 4.48 10 10 10 3.15 0 5.95-1.45 7.8-3.75v3.25c0 3.3-3 5-7.3 5-3.3 0-6-1.3-7.3-3-.5-.7-1.5-.8-2.2-.3l-1.2.9c-.6.5-.7 1.5-.2 2.2 2.2 2.5 6 4.2 10.9 4.2 6.7 0 11.3-4 11.3-10V11c0-1.1-.9-2-2-2H20zm0 16c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z' fill='white'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #f2efe9;
+      --card-bg: #ffffff;
+      --sidebar-bg: #141416;
+      --border-dark: #1a1a1a;
+      --border-light: #e4e0d7;
+      --primary-orange: #ff5a00;
+      --primary-orange-hover: #e04f00;
+      --text-dark: #18181b;
+      --text-muted: #64748b;
+      --text-dim: #71717a;
+      --accent-green: #16a34a;
+      --accent-amber: #d97706;
+      --accent-red: #dc2626;
+      --shadow-brutal: 3px 3px 0px var(--border-dark);
+      --shadow-sm: 2px 2px 0px var(--border-dark);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+      background: var(--canvas);
+      color: var(--text-dark);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .app-container {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* Left Sidebar: Site Switcher Dock */
+    .sidebar {
+      width: 68px;
+      background: var(--sidebar-bg);
+      border-right: 2px solid var(--border-dark);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 0;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+    .sidebar-logo {
+      width: 44px;
+      height: 44px;
+      background: var(--primary-orange);
+      border: 2px solid var(--border-dark);
+      box-shadow: 2px 2px 0px var(--border-dark);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      margin-bottom: 16px;
+      cursor: pointer;
+      position: relative;
+    }
+    .sidebar-label {
+      font-size: 8px;
+      font-weight: 800;
+      color: #71717a;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .site-dock {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      align-items: center;
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 4px 0;
+    }
+    .site-dock::-webkit-scrollbar { width: 3px; }
+    .site-dock::-webkit-scrollbar-thumb { background: #27272a; border-radius: 2px; }
+
+    .site-nav-btn {
+      width: 48px;
+      height: 48px;
+      background: #1f1f23;
+      border: 2px solid #2e2e34;
+      border-radius: 6px;
+      color: #a1a1aa;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.15s ease;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.02em;
+    }
+    .site-nav-btn:hover {
+      background: #27272a;
+      color: #ffffff;
+      border-color: #52525b;
+    }
+    .site-nav-btn.active {
+      background: #27272a;
+      border-color: var(--primary-orange);
+      color: #ffffff;
+      box-shadow: 2px 2px 0px var(--primary-orange);
+    }
+    .site-status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      border: 1px solid #141416;
+    }
+    .dot-green { background: var(--accent-green); }
+    .dot-amber { background: var(--accent-amber); }
+    .dot-orange {
+      background: var(--primary-orange);
+      box-shadow: 0 0 6px var(--primary-orange);
+      animation: pulse-dot 1.2s infinite ease-in-out;
+    }
+    .dot-red { background: var(--accent-red); }
+
+    @keyframes pulse-dot {
+      0% { transform: scale(0.9); opacity: 0.7; }
+      50% { transform: scale(1.3); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.7; }
+    }
+
+    .btn-add-site {
+      width: 48px;
+      height: 42px;
+      background: transparent;
+      border: 2px dashed #3f3f46;
+      border-radius: 6px;
+      color: #71717a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      margin-top: 6px;
+      transition: all 0.15s ease;
+    }
+    .btn-add-site:hover {
+      border-color: var(--primary-orange);
+      color: var(--primary-orange);
+      background: rgba(255, 90, 0, 0.08);
+    }
+
+    /* Workspace */
+    .workspace {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* Top Navigation Bar */
+    .topbar {
+      height: 52px;
+      background: var(--canvas);
+      border-bottom: 2px solid var(--border-dark);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      flex-shrink: 0;
+    }
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .topbar-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-dark);
+    }
+    .topbar-tag {
+      background: #e4e0d7;
+      border: 1px solid var(--border-dark);
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      border-radius: 2px;
+      color: #3f3f46;
+    }
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    /* Stat Ribbon */
+    .metrics-ribbon {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      padding: 10px 14px 6px;
+      flex-shrink: 0;
+    }
+    .metric-card {
+      background: var(--card-bg);
+      border: 2px solid var(--border-dark);
+      box-shadow: var(--shadow-sm);
+      border-radius: 4px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .metric-info { display: flex; flex-direction: column; }
+    .metric-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+    .metric-value {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      color: var(--text-dark);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .metric-pill {
+      font-family: 'Inter', sans-serif;
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border: 1.5px solid var(--border-dark);
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+    .pill-green { background: #dcfce7; color: #15803d; }
+    .pill-orange { background: #ffedd5; color: #c2410c; }
+    .pill-amber { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+    .pill-slate { background: #f1f5f9; color: #475569; }
+
+    /* Main Grid: Form Left, Console Right */
+    .hero-grid {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1.18fr 0.82fr;
+      gap: 12px;
+      padding: 6px 14px 12px;
+      overflow: hidden;
+    }
+
+    /* Panel Base */
+    .panel {
+      background: var(--card-bg);
+      border: 2px solid var(--border-dark);
+      box-shadow: var(--shadow-brutal);
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .panel-header {
+      background: #faf8f5;
+      border-bottom: 2px solid var(--border-dark);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .panel-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--text-dark);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-title svg { color: var(--primary-orange); }
+
+    .form-panel-body {
+      padding: 10px 14px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      overflow-y: auto;
+      gap: 12px;
+      max-height: calc(100vh - 170px);
+    }
+    .form-panel-body::-webkit-scrollbar, .modal-body::-webkit-scrollbar { width: 6px; }
+    .form-panel-body::-webkit-scrollbar-track, .modal-body::-webkit-scrollbar-track { background: #f1f1f4; }
+    .form-panel-body::-webkit-scrollbar-thumb, .modal-body::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 3px; }
+    .form-panel-body::-webkit-scrollbar-thumb:hover, .modal-body::-webkit-scrollbar-thumb:hover { background: var(--primary-orange); }
+
+    /* Form Fields */
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .field-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    .form-field { display: flex; flex-direction: column; }
+    .form-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #27272a;
+      margin-bottom: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .badge-subtle {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 2px;
+      border: 1px solid #d4d4d8;
+      background: #f4f4f5;
+      color: #52525b;
+    }
+    .badge-orange-tag {
+      background: #fff7ed;
+      border-color: #fdba74;
+      color: #c2410c;
+    }
+
+    .input-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .input-field {
+      width: 100%;
+      height: 32px;
+      background: #ffffff;
+      border: 2px solid var(--border-dark);
+      border-radius: 3px;
+      color: var(--text-dark);
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 500;
+      padding: 4px 8px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .input-field:focus {
+      border-color: var(--primary-orange);
+      box-shadow: 2px 2px 0px var(--primary-orange);
+    }
+    select.input-field {
+      cursor: pointer;
+    }
+    .input-code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+    .input-eye-btn {
+      position: absolute;
+      right: 6px;
+      background: transparent;
+      border: none;
+      color: #71717a;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      padding: 2px;
+    }
+    .input-eye-btn:hover { color: var(--text-dark); }
+
+    /* Custom Secret Masking (immune to browser password manager autofill hijacking) */
+    .secret-mask {
+      -webkit-text-security: disc !important;
+      text-security: disc !important;
+    }
+    .secret-mask.revealed {
+      -webkit-text-security: none !important;
+      text-security: none !important;
+    }
+
+    /* Suppress aggressive Chrome autofill yellow/blue background */
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover, 
+    input:-webkit-autofill:focus, 
+    input:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 30px #ffffff inset !important;
+      -webkit-text-fill-color: #18181b !important;
+      transition: background-color 5000s ease-in-out 0s;
+    }
+
+    /* Action Buttons */
+    .form-actions-bar {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 2px dashed var(--border-light);
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .form-actions-bar .btn {
+      height: 34px;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      padding: 0 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .btn {
+      height: 36px;
+      padding: 0 14px;
+      border: 2px solid var(--border-dark);
+      box-shadow: var(--shadow-sm);
+      border-radius: 4px;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 14.5px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.1s ease;
+      user-select: none;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn:active {
+      transform: translate(1px, 1px);
+      box-shadow: 1px 1px 0px var(--border-dark);
+    }
+    .btn-topbar {
+      height: 32px;
+      padding: 0 14px;
+      font-size: 13.5px;
+      letter-spacing: 0.03em;
+    }
+    .btn-icon-topbar {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .btn-orange {
+      background: var(--primary-orange);
+      color: #ffffff;
+      border-color: var(--border-dark);
+    }
+    .btn-orange:hover { background: var(--primary-orange-hover); }
+    .btn-white {
+      background: #ffffff;
+      color: var(--text-dark);
+      border: 2px solid var(--border-dark);
+    }
+    .btn-white:hover { background: #f4f4f5; }
+    .btn-dark {
+      background: #18181b;
+      color: #ffffff;
+      border: 2px solid var(--border-dark);
+    }
+    .btn-dark:hover { background: #27272a; }
+    .btn-danger-outline {
+      background: #ffffff;
+      color: var(--accent-red);
+      border: 2px solid var(--border-dark);
+      box-shadow: var(--shadow-sm);
+    }
+    .btn-danger-outline:hover {
+      background: #fee2e2;
+      color: #b91c1c;
+      border-color: var(--border-dark);
+    }
+
+    /* Console Terminal */
+    .console-body {
+      background: #09090b;
+      color: #e4e4e7;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      line-height: 1.55;
+      padding: 12px;
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .console-body::-webkit-scrollbar { width: 6px; }
+    .console-body::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+    .log-info { color: #93c5fd; }
+    .log-success { color: #86efac; }
+    .log-warn { color: #fde047; }
+    .log-error { color: #fca5a5; }
+
+    /* Modals */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(2px);
+      z-index: 999;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-box {
+      background: #ffffff;
+      border: 3px solid var(--border-dark);
+      box-shadow: 6px 6px 0px var(--border-dark);
+      border-radius: 6px;
+      max-width: 600px;
+      width: 90vw;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: modal-pop 0.15s ease-out;
+    }
+    .modal-box-large { max-width: 900px; }
+    @keyframes modal-pop {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    .modal-header {
+      background: #faf8f5;
+      border-bottom: 2px solid var(--border-dark);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 18px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .modal-body {
+      padding: 14px 16px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .modal-footer {
+      background: #faf8f5;
+      border-top: 2px solid var(--border-dark);
+      padding: 10px 16px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #18181b;
+      color: #fff;
+      padding: 10px 16px;
+      border: 2px solid var(--border-dark);
+      box-shadow: var(--shadow-sm);
+      border-radius: 4px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      border-left: 5px solid var(--primary-orange);
+    }
+
+    /* Site-Specific Monitoring Control Card */
+    .monitoring-control-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border: 2px solid var(--border-dark);
+      border-radius: 4px;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s ease;
+    }
+    .monitoring-control-card.active-state {
+      background: #f0fdf4;
+      border-color: #16a34a;
+    }
+    .monitoring-control-card.paused-state {
+      background: #fffbeb;
+      border-color: #d97706;
+    }
+    .status-indicator-circle {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: inline-block;
+    }
+    .status-indicator-circle.active {
+      background: #16a34a;
+      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.25);
+    }
+    .status-indicator-circle.paused {
+      background: #d97706;
+      box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.25);
+    }
+    .status-indicator-circle.capturing {
+      background: #ff5a00;
+      box-shadow: 0 0 0 3px rgba(255, 90, 0, 0.35);
+      animation: pulse-ring 1.2s infinite;
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    /* Chrome Browser Tab System */
+    .chrome-tabs-strip-container {
+      margin-bottom: 14px;
+    }
+    .chrome-tabs-strip {
+      display: flex;
+      align-items: flex-end;
+      background: #e2e4e9;
+      border: 2px solid var(--border-dark);
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      padding: 6px 6px 0 6px;
+      gap: 4px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      min-height: 42px;
+    }
+    .chrome-tabs-strip::-webkit-scrollbar {
+      height: 4px;
+    }
+    .chrome-tabs-strip::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 2px;
+    }
+    .chrome-tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      background: #d1d5db;
+      color: #4b5563;
+      border: 2px solid #9ca3af;
+      border-bottom: 2px solid var(--border-dark);
+      border-radius: 7px 7px 0 0;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      white-space: nowrap;
+      max-width: 220px;
+      user-select: none;
+      position: relative;
+      transition: background 0.12s ease, color 0.12s ease;
+    }
+    .chrome-tab:hover {
+      background: #e5e7eb;
+      color: #111827;
+    }
+    .chrome-tab.active {
+      background: #ffffff;
+      color: var(--text-dark);
+      border: 2px solid var(--border-dark);
+      border-bottom: 2px solid #ffffff;
+      margin-bottom: -2px;
+      z-index: 3;
+      box-shadow: 0 -2px 4px rgba(0,0,0,0.06);
+    }
+    .chrome-tab-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .chrome-tab-indicator.active {
+      background: var(--accent-green);
+      box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.25);
+    }
+    .chrome-tab-indicator.paused {
+      background: var(--accent-amber);
+    }
+    .chrome-tab-indicator.new {
+      background: var(--primary-orange);
+      animation: pulse-ring 1.5s infinite;
+    }
+    .chrome-tab-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      flex: 1;
+    }
+    .chrome-tab-close {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      font-size: 12px;
+      line-height: 1;
+      color: #6b7280;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      margin-left: 2px;
+      transition: all 0.12s ease;
+    }
+    .chrome-tab-close:hover {
+      background: #fecaca;
+      color: #dc2626;
+    }
+    .chrome-tab-add-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      background: #ffffff;
+      border: 2px solid var(--border-dark);
+      border-radius: 6px;
+      color: var(--text-dark);
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1;
+      cursor: pointer;
+      margin-bottom: 4px;
+      margin-left: 4px;
+      flex-shrink: 0;
+      transition: all 0.12s ease;
+      box-shadow: 1px 1px 0px var(--border-dark);
+    }
+    .chrome-tab-add-btn:hover {
+      background: var(--primary-orange);
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+    .chrome-tab-content-panel {
+      background: #ffffff;
+      border: 2px solid var(--border-dark);
+      border-radius: 0 6px 6px 6px;
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+      position: relative;
+      z-index: 2;
+    }
+
+    /* Clean Distribution Collapsible Sections inside Link Tab */
+    .link-section-card {
+      background: #fafaf9;
+      border: 1.5px solid #d4d4d8;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      overflow: hidden;
+      transition: border-color 0.15s ease;
+    }
+    .link-section-card:hover {
+      border-color: #a1a1aa;
+    }
+    .link-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background: #ffffff;
+      border-bottom: 1.5px solid #e4e4e7;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.12s ease;
+    }
+    .link-section-header:hover {
+      background: #f8fafc;
+    }
+    .link-section-header:focus-visible {
+      outline: 2px solid var(--primary-orange);
+      outline-offset: -2px;
+    }
+    .link-section-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--text-dark);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .link-section-title svg {
+      color: var(--primary-orange);
+    }
+    .link-section-badge {
+      font-family: 'Inter', sans-serif;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #71717a;
+      text-transform: none;
+      letter-spacing: normal;
+    }
+    .link-section-chevron {
+      color: #71717a;
+      display: flex;
+      align-items: center;
+      transition: transform 0.2s ease;
+    }
+    .link-section-card.collapsed .link-section-chevron {
+      transform: rotate(-90deg);
+    }
+    .link-section-card.collapsed .link-section-header {
+      border-bottom: none;
+    }
+    .link-section-card.collapsed .link-section-body {
+      display: none;
+    }
+    .link-section-body {
+      padding: 12px 14px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <!-- Left Rail: Site Switcher Dock -->
+  <aside class="sidebar">
+    <div class="sidebar-logo" onclick="openGlobalConfigModal()" title="GreyOrange OpsBot — Click for Global Settings">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+        <circle cx="12" cy="5" r="2"></circle>
+        <path d="M12 7v4"></path>
+        <line x1="8" y1="16" x2="8" y2="16"></line>
+        <line x1="16" y1="16" x2="16" y2="16"></line>
+      </svg>
+    </div>
+
+    <div class="sidebar-label">SITES</div>
+
+    <div class="site-dock" id="site-dock-list">
+      <!-- Injected dynamically via loadSites() -->
+    </div>
+
+    <button type="button" class="btn-add-site" onclick="openAddSiteModal()" title="Add New Monitoring Site">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    </button>
+  </aside>
+
+  <!-- Main Workspace -->
+  <main class="workspace">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="topbar-title">
+          <span style="color: var(--primary-orange);">SITE:</span>
+          <span id="topbar-site-name">Loading...</span>
+        </div>
+        <span id="topbar-site-status" class="metric-pill pill-amber">PAUSED (STANDBY)</span>
+        <span id="topbar-site-interval" class="topbar-tag">EVERY 30 MINS</span>
+        <span id="topbar-site-channel" class="topbar-tag">#CHANNEL</span>
+      </div>
+
+      <div class="topbar-right">
+        <button type="button" class="btn btn-topbar" id="btn-topbar-pause-toggle" onclick="toggleCurrentSitePause()" style="font-weight: 700; height: 32px; font-size: 11.5px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; background: #16a34a; border-color: #15803d; color: #fff; cursor: pointer;" title="Master switch: Start or Pause automated monitoring across all tabs in this site">
+          <span id="topbar-pause-icon" style="display: inline-flex; align-items: center;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          </span>
+          <span id="topbar-pause-text">Start Site Monitoring</span>
+        </button>
+
+        <button type="button" class="btn btn-white btn-topbar" id="btn-global-settings" onclick="openGlobalConfigModal()" title="Global Settings (Slack Bot Token, Proxy, Timezone)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+          <span>Global Settings</span>
+        </button>
+
+        <button type="button" class="btn btn-danger-outline btn-icon-topbar" onclick="openDeleteModal()" id="btn-delete-site" title="Delete this Site">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Metrics Ribbon -->
+    <section class="metrics-ribbon">
+      <div class="metric-card">
+        <div class="metric-info">
+          <span class="metric-label">MONITORED SITES</span>
+          <span class="metric-value" id="metric-total-sites">1 ACTIVE</span>
+        </div>
+        <span class="metric-pill pill-slate">MULTI-SITE</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-info">
+          <span class="metric-label">CADENCE (INTERVAL)</span>
+          <span class="metric-value" id="metric-interval">30 MINS</span>
+        </div>
+        <span class="metric-pill pill-slate">RECURRING</span>
+      </div>
+      <div class="metric-card" onclick="toggleCurrentSitePause()" style="cursor: pointer;" title="Click to Start or Pause Monitoring across this site">
+        <div class="metric-info">
+          <span class="metric-label">ACTIVE SITE STATUS</span>
+          <span class="metric-value" id="metric-last-status">PAUSED</span>
+        </div>
+        <span class="metric-pill pill-amber" id="status-pill" style="cursor: pointer;">PAUSED (CLICK TO START)</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-info">
+          <span class="metric-label">LAST EXECUTION</span>
+          <span class="metric-value" id="metric-last-time" style="font-size: 16px;">PENDING</span>
+        </div>
+        <span class="metric-pill pill-slate">UTC/IST</span>
+      </div>
+    </section>
+
+    <!-- Main Grid: Form Left, Console Right -->
+    <div class="hero-grid">
+      <!-- Left Panel: Site Settings Form -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span id="form-site-title">SITE SETTINGS: SITE 1 (PRIMARY)</span>
+          </div>
+          <span class="badge-subtle badge-orange-tag" id="active-site-id-badge">ID: SITE_1</span>
+        </div>
+
+        <form class="form-panel-body" id="site-settings-form" autocomplete="off" onsubmit="event.preventDefault(); saveCurrentSite();">
+          <!-- Active Site Monitoring State & Quick Action Card -->
+          <div id="site-monitoring-banner" class="monitoring-control-card paused-state">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div id="site-status-indicator-dot" class="status-indicator-circle paused"></div>
+              <div>
+                <div style="font-family: 'Barlow Condensed', sans-serif; font-size: 16px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase;" id="site-status-headline">SITE MONITORING STOPPED (PAUSED)</div>
+                <div style="font-size: 11px; color: var(--text-dim);" id="site-status-subline">Master switch: controls automated background capture cycles across all enabled tabs for this site.</div>
+              </div>
+            </div>
+            <button type="button" class="btn btn-orange" id="btn-pause-toggle" onclick="toggleCurrentSitePause()" style="font-size: 12px; font-weight: 700; padding: 6px 14px; display: inline-flex; align-items: center; gap: 6px;">
+              <span id="pause-icon" style="display: inline-flex; align-items: center;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              </span>
+              <span id="pause-btn-text">Start Site Monitoring</span>
+            </button>
+          </div>
+
+          <!-- Site Operations Name -->
+          <div class="field-row" style="grid-template-columns: 1fr auto; align-items: flex-end;">
+            <div class="form-field">
+              <label class="form-label" for="site_name">Site Operations Name</label>
+              <input type="text" id="site_name" class="input-field" placeholder="e.g. Atlanta Distribution Hub" required oninput="document.getElementById('topbar-site-name').innerText = this.value.toUpperCase()">
+            </div>
+            <button type="submit" class="btn btn-white" id="btn-save" style="height: 34px; font-size: 11px; padding: 0 12px; margin-bottom: 2px;" title="Save Site Name">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+              Save Site
+            </button>
+          </div>
+          <input type="hidden" id="interval_minutes" value="30">
+
+          <input type="hidden" id="grafana_username">
+          <input type="hidden" id="grafana_password">
+          <input type="hidden" id="grafana_url">
+          <input type="hidden" id="grafana_token">
+
+          <!-- Chrome Browser Tabs: Monitored Links & Dedicated Portals -->
+          <div class="chrome-tabs-strip-container">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <div>
+                <label class="form-label" style="margin-bottom: 0; font-size: 13px; font-weight: 800; color: var(--primary-orange); display: flex; align-items: center; gap: 6px;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                  MONITORED LINKS &amp; ANOMALY PORTAL (BROWSER TABS)
+                </label>
+                <div style="font-size: 10.5px; color: #71717a; margin-top: 2px;">
+                  Each tab is a dedicated full config page. Shift between tabs or click <strong>+</strong> to add a new link tab.
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span id="chrome-tab-count-badge" class="badge-subtle">0 Links</span>
+                <button type="button" class="btn btn-orange" style="height: 26px; font-size: 11px; padding: 0 10px;" onclick="addNewLinkTab()">
+                  + New Link Tab
+                </button>
+              </div>
+            </div>
+
+            <!-- Chrome Tabs Bar -->
+            <div class="chrome-tabs-strip" id="chrome-tabs-bar">
+              <!-- Dynamically populated tabs and '+' button -->
+            </div>
+
+            <!-- Active Tab Dedicated Configuration Page -->
+            <div class="chrome-tab-content-panel" id="chrome-tab-content">
+              <!-- Dynamically populated full link configuration form -->
+            </div>
+          </div>
+
+          <!-- Hidden site-level fallback fields -->
+          <input type="hidden" id="slack_channel_id">
+          <input type="hidden" id="slack_thread_ts">
+          <input type="hidden" id="slack_message" value="*Grafana Snapshot Alert* - {datetime}">
+          <input type="hidden" id="threshold_enabled" value="true">
+          <input type="hidden" id="threshold_metric_type" value="spike_jump">
+          <input type="hidden" id="threshold_operator" value=">">
+          <input type="hidden" id="threshold_value" value="0">
+          <input type="hidden" id="threshold_keywords" value="">
+          <input type="hidden" id="threshold_colors" value="red, orange, yellow">
+          <input type="hidden" id="threshold_breach_users" value="">
+          <input type="checkbox" id="threshold_only_alert_on_breach" style="display:none;">
+
+          <!-- Hidden site-level fallback shift schedule fields -->
+          <input type="hidden" id="shift_morning_hours" value="06:00-14:00">
+          <input type="hidden" id="shift_morning_users" value="">
+          <input type="hidden" id="shift_afternoon_hours" value="14:00-22:00">
+          <input type="hidden" id="shift_afternoon_users" value="">
+          <input type="hidden" id="shift_night_hours" value="22:00-06:00">
+          <input type="hidden" id="shift_night_users" value="">
+          <input type="checkbox" id="shift_tag_channel" style="display:none;" checked>
+          <input type="checkbox" id="shift_send_dm" style="display:none;" checked>
+        </form>
+      </section>
+
+      <!-- Right Panel: Activity Console -->
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+            Activity Stream Console
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <select id="log-site-filter" class="input-field" style="height: 24px; font-size: 11px; padding: 0 4px; width: 140px;" onchange="fetchLogs()">
+              <option value="all">All Sites Stream</option>
+            </select>
+            <button type="button" class="btn btn-white" style="height: 24px; font-size: 11px; padding: 0 8px; box-shadow: none;" onclick="clearLogs()">Clear</button>
+            <button type="button" class="btn btn-white" style="height: 24px; font-size: 11px; padding: 0 8px; box-shadow: none;" onclick="fetchLogs(true)">Refresh</button>
+          </div>
+        </div>
+
+        <div class="console-body" id="log-output">
+          <div>[System] GreyOrange Multi-Site Operations Center Initialized...</div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- Add Site Modal -->
+<div class="modal-backdrop" id="add-site-modal" onclick="closeAddSiteModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span>Add New Monitoring Site</span>
+      <button type="button" class="btn btn-white" style="height: 26px; padding: 0 10px; font-size: 11px;" onclick="closeAddSiteModal()">Close</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-field" style="margin-bottom: 12px;">
+        <label class="form-label" for="new-site-name">Site Operations Name</label>
+        <input type="text" id="new-site-name" class="input-field" placeholder="e.g. Dallas Distribution Hub, Site 2" required>
+      </div>
+      <div class="form-field" style="margin-bottom: 12px;">
+        <label class="form-label" for="new-site-url">Grafana Dashboard URL (Optional)</label>
+        <input type="text" id="new-site-url" class="input-field input-code" placeholder="http://grafana-host:3000/d/...">
+      </div>
+      <div style="margin-top: 8px;">
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #27272a; cursor: pointer;">
+          <input type="checkbox" id="new-site-clone-creds" checked style="accent-color: var(--primary-orange);"> Copy Slack Channel, Credentials & Shifts from active site
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-white" onclick="closeAddSiteModal()">Cancel</button>
+      <button type="button" class="btn btn-orange" onclick="submitCreateSite()">Create Site</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Site Confirmation Modal -->
+<div class="modal-backdrop" id="delete-site-modal" onclick="closeDeleteModal()">
+  <div class="modal-box" style="max-width: 420px;" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span style="color: var(--accent-red);">Confirm Site Deletion</span>
+      <button type="button" class="btn btn-white" style="height: 26px; padding: 0 10px; font-size: 11px;" onclick="closeDeleteModal()">Close</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size: 13px; line-height: 1.5; color: #3f3f46;">
+        Are you sure you want to delete <strong id="delete-site-name" style="color: #18181b;">this site</strong>?
+      </p>
+      <p style="font-size: 12px; color: var(--accent-red); margin-top: 8px; font-weight: 600;">
+        This will stop all monitoring for this site and remove its configuration. This action cannot be undone.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-white" onclick="closeDeleteModal()">Cancel</button>
+      <button type="button" class="btn btn-danger-outline" style="background: var(--accent-red); color: #fff; border-color: var(--accent-red);" onclick="submitDeleteSite()">Yes, Delete Site</button>
+    </div>
+  </div>
+</div>
+
+<!-- Global Settings Modal -->
+<div class="modal-backdrop" id="global-config-modal" onclick="closeGlobalConfigModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span>Global Hub Settings</span>
+      <button type="button" class="btn btn-white" style="height: 26px; padding: 0 10px; font-size: 11px;" onclick="closeGlobalConfigModal()">Close</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-field" style="margin-bottom: 12px;">
+        <label class="form-label" for="global_slack_bot_token">
+          <span>Global Slack Bot Token</span>
+          <span class="badge-subtle">Shared by all sites</span>
+        </label>
+        <div class="input-box">
+          <input type="text" id="global_slack_bot_token" name="global_tok_${Date.now()}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" class="input-field input-code secret-mask" placeholder="xoxb-••••••••••••••••">
+          <button type="button" class="input-eye-btn" onclick="toggleVisibility('global_slack_bot_token')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+      </div>
+      <div class="field-row" style="margin-bottom: 12px;">
+        <div class="form-field">
+          <label class="form-label" for="global_timezone">Timezone</label>
+          <input type="text" id="global_timezone" class="input-field input-code" value="Asia/Kolkata">
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="global_proxy">HTTP/SOCKS Proxy (VM only)</label>
+          <input type="text" id="global_proxy" class="input-field input-code" placeholder="Leave empty on Windows">
+        </div>
+      </div>
+
+      <!-- Master Google SSO Session State Card -->
+      <div style="background: #fafaf9; border: 1.5px solid #e4e4e7; border-radius: 6px; padding: 12px; margin-top: 14px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--primary-orange); display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            Google SSO Master Session (Universal Auth)
+          </div>
+          <span id="global-sso-status-badge" class="badge-subtle" style="font-weight: 700;">Checking...</span>
+        </div>
+        <p style="font-size: 11.5px; color: #52525b; line-height: 1.4; margin-bottom: 8px;">
+          This master session (<code style="background: #f4f4f5; padding: 1px 4px; border-radius: 3px;">grafana_auth_state.json</code>) enables the bot to directly authenticate through Google Workspace SSO across <b>all current and future</b> internal Grafana links without timeout errors.
+        </p>
+        <div id="global-sso-details" style="font-size: 11px; color: #71717a; margin-bottom: 10px; font-family: monospace;"></div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <input type="file" id="global-sso-file-input" accept=".json" style="font-size: 11px; max-width: 220px;">
+          <button type="button" class="btn btn-white" id="btn-upload-sso" onclick="uploadMasterSessionFile()" style="font-size: 11px; height: 30px; display: inline-flex; align-items: center; gap: 5px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+            Upload Session JSON
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-white" onclick="closeGlobalConfigModal()">Cancel</button>
+      <button type="button" class="btn btn-orange" onclick="saveGlobalConfig()">Save Global Settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal-backdrop" id="preview-modal" onclick="closeModal()">
+  <div class="modal-box" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="width: 22px; height: 22px; background: var(--primary-orange); border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+        </div>
+        <span id="preview-modal-title">Headless Capture Preview</span>
+      </div>
+      <button type="button" class="btn btn-white" style="height: 26px; padding: 0 10px; font-size: 11px;" onclick="closeModal()">Close</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<!-- Extracted Text & Threshold Modal -->
+<div class="modal-backdrop" id="extract-modal" onclick="closeExtractModal()">
+  <div class="modal-box modal-box-large" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="width: 22px; height: 22px; background: var(--primary-orange); border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+        </div>
+        <span id="extract-modal-title">Extracted Dashboard Data & Threshold Inspector</span>
+      </div>
+      <button type="button" class="btn btn-white" style="height: 26px; padding: 0 10px; font-size: 11px;" onclick="closeExtractModal()">Close</button>
+    </div>
+    <div class="modal-body" id="extract-modal-body" style="text-align: left; padding: 18px;"></div>
+  </div>
+</div>
+
+<!-- Add / Edit Monitored Link Modal -->
+<div class="modal-backdrop" id="link-modal" onclick="closeLinkModal()">
+  <div class="modal-box modal-box-large" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="width: 22px; height: 22px; background: var(--primary-orange); border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+        </div>
+        <span id="link-modal-title">Configure Monitored Dashboard Link</span>
+      </div>
+      <button type="button" class="btn btn-white" style="height: 26px; padding: 0 10px; font-size: 11px;" onclick="closeLinkModal()">Close</button>
+    </div>
+    <div class="modal-body" style="padding: 16px;">
+      <input type="hidden" id="modal_link_id">
+
+      <!-- Link Title & URL -->
+      <div class="field-row" style="grid-template-columns: 1fr 1fr; margin-bottom: 10px;">
+        <div class="form-field">
+          <label class="form-label" for="modal_link_title">Link Friendly Title</label>
+          <input type="text" id="modal_link_title" class="input-field" placeholder="e.g. Bridge Disk Utilization, Aging Queue">
+        </div>
+        <div class="form-field">
+          <label class="form-label" style="display: flex; justify-content: space-between;">
+            <span>Monitoring Active</span>
+            <span class="badge-subtle">Check to include in runs</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; height: 32px; cursor: pointer;">
+            <input type="checkbox" id="modal_link_enabled" checked style="accent-color: var(--primary-orange); width: 16px; height: 16px;">
+            <span>Active (Run during scheduled cycles)</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-field" style="margin-bottom: 12px;">
+        <label class="form-label" for="modal_link_url">
+          <span>Grafana Target URL</span>
+          <span class="badge-subtle">Full dashboard or specific panel URL</span>
+        </label>
+        <input type="text" id="modal_link_url" class="input-field input-code" placeholder="http://172.28.76.144:8088/d/... or /d-solo/..." required>
+      </div>
+
+      <!-- Time Interval & Panel Range Settings -->
+      <div style="background: #fafaf9; border: 1.5px solid #e4e4e7; border-radius: 4px; padding: 10px; margin-bottom: 12px;">
+        <label class="form-label" style="font-size: 11.5px; color: var(--primary-orange); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+          Time Interval &amp; Query Window
+        </label>
+        <div class="field-row">
+          <div class="form-field">
+            <label class="form-label" for="modal_link_interval">
+              <span>Check Cadence / Frequency</span>
+              <span class="badge-subtle">How often to run</span>
+            </label>
+            <select id="modal_link_interval" class="input-field" onchange="onLinkIntervalChange()">
+              <option value="0">Default (Inherit Site Interval)</option>
+              <option value="1">Every 1 Minute (High Priority)</option>
+              <option value="2">Every 2 Minutes</option>
+              <option value="5">Every 5 Minutes</option>
+              <option value="10">Every 10 Minutes</option>
+              <option value="15">Every 15 Minutes</option>
+              <option value="30">Every 30 Minutes</option>
+              <option value="60">Every 1 Hour (60m)</option>
+              <option value="120">Every 2 Hours (120m)</option>
+              <option value="custom">Custom Minutes...</option>
+            </select>
+            <input type="number" id="modal_link_interval_custom" class="input-field input-code" style="display: none; margin-top: 6px;" min="1" max="1440" placeholder="Custom interval in minutes (e.g. 45)">
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="modal_link_timerange">
+              <span>Panel Time Window (Query Range)</span>
+              <span class="badge-subtle">Grafana &amp;from=&amp;to=</span>
+            </label>
+            <select id="modal_link_timerange" class="input-field">
+              <option value="url_default">Preserve from URL (No change)</option>
+              <option value="now-5m">Last 5 Minutes (now-5m)</option>
+              <option value="now-15m">Last 15 Minutes (now-15m)</option>
+              <option value="now-30m">Last 30 Minutes (now-30m)</option>
+              <option value="now-1h">Last 1 Hour (now-1h)</option>
+              <option value="now-3h">Last 3 Hours (now-3h)</option>
+              <option value="now-6h">Last 6 Hours (now-6h)</option>
+              <option value="now-12h">Last 12 Hours (now-12h)</option>
+              <option value="now-24h">Last 24 Hours (now-24h)</option>
+              <option value="now-2d">Last 2 Days (now-2d)</option>
+              <option value="now-7d">Last 7 Days (now-7d)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dedicated Credentials for this link -->
+      <div style="background: #fafaf9; border: 1px solid #e4e4e7; border-radius: 4px; padding: 10px; margin-bottom: 12px;">
+        <label class="form-label" style="font-size: 11px; color: var(--text-dark); margin-bottom: 6px;">
+          Dedicated Grafana Credentials for this Link (Optional — inherits site credentials if empty)
+        </label>
+        <div class="field-row">
+          <div class="form-field">
+            <label class="form-label" for="modal_link_username">Username</label>
+            <input type="text" id="modal_link_username" class="input-field input-code" placeholder="Leave blank to use site default">
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="modal_link_password">Password</label>
+            <div class="input-box">
+              <input type="password" id="modal_link_password" class="input-field input-code" placeholder="Leave blank to use site default">
+              <button type="button" class="input-eye-btn" onclick="toggleVisibility('modal_link_password')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Spike & Anomaly Threshold Rules -->
+      <div style="background: #fafaf9; border: 1.5px solid var(--border-dark); border-radius: 4px; padding: 10px; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <label class="form-label" style="margin-bottom: 0; font-size: 12px; color: var(--primary-orange); display: flex; align-items: center; gap: 6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            Anomaly &amp; Sudden Spike Detection Rules
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; color: #52525b; cursor: pointer;">
+            <input type="checkbox" id="modal_link_thresh_enabled" checked style="accent-color: var(--primary-orange);"> Enable Anomaly Engine
+          </label>
+        </div>
+
+        <div class="field-row-3">
+          <div class="form-field">
+            <label class="form-label" for="modal_link_metric_type">Metric Trigger Type</label>
+            <select id="modal_link_metric_type" class="input-field">
+              <option value="spike_jump">Sudden Spike / Surge (% or Delta)</option>
+              <option value="number_val">Numeric KPI / Gauge Ceiling</option>
+              <option value="row_count">Table Row Count</option>
+              <option value="color_status">Status Color (Red/Yellow)</option>
+              <option value="keyword">Alert Keyword Match</option>
+              <option value="any">Any Anomaly (All Combined)</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="modal_link_operator">Operator</label>
+            <select id="modal_link_operator" class="input-field">
+              <option value=">">&gt; (Greater than)</option>
+              <option value=">=">&gt;= (Greater or equal)</option>
+              <option value="<">&lt; (Less than)</option>
+              <option value="<=">&lt;= (Less or equal)</option>
+              <option value="==">== (Equals)</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="modal_link_value">
+              <span>Threshold Value</span>
+              <span class="badge-subtle">e.g. 20 for +20% jump</span>
+            </label>
+            <input type="text" id="modal_link_value" class="input-field input-code" value="20">
+          </div>
+        </div>
+
+        <div class="field-row" style="margin-top: 8px;">
+          <div class="form-field">
+            <label class="form-label" for="modal_link_keywords">Alert Keywords (comma-separated)</label>
+            <input type="text" id="modal_link_keywords" class="input-field input-code" placeholder="e.g. error, critical, breach">
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="modal_link_colors">Trigger Colors</label>
+            <input type="text" id="modal_link_colors" class="input-field input-code" value="red, orange, yellow">
+          </div>
+        </div>
+      </div>
+
+      <!-- Dedicated Slack Routing for this Link -->
+      <div style="background: #fafaf9; border: 1px solid #e4e4e7; border-radius: 4px; padding: 10px;">
+        <label class="form-label" style="font-size: 12px; color: var(--primary-orange); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          Dedicated Slack Destination &amp; Alert Routing
+        </label>
+        <div class="field-row">
+          <div class="form-field">
+            <label class="form-label" for="modal_link_channel">Target Channel ID (Optional override)</label>
+            <input type="text" id="modal_link_channel" class="input-field input-code" placeholder="Leave empty to use site channel">
+          </div>
+          <div class="form-field">
+            <label class="form-label" for="modal_link_thread">Thread Timestamp (Optional override)</label>
+            <input type="text" id="modal_link_thread" class="input-field input-code" placeholder="Leave empty to use site thread">
+          </div>
+        </div>
+        <div class="form-field" style="margin-top: 6px;">
+          <label class="form-label" for="modal_link_message">Custom Slack Message Template</label>
+          <input type="text" id="modal_link_message" class="input-field input-code" value="*Grafana Snapshot Alert* - {datetime}">
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px;">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #27272a; cursor: pointer;">
+            <input type="checkbox" id="modal_link_send_channel" checked style="accent-color: var(--primary-orange);"> Post Snapshot to Slack Channel
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #27272a; cursor: pointer;">
+            <input type="checkbox" id="modal_link_send_dm" checked style="accent-color: var(--primary-orange);"> Send Alert &amp; Snapshot to On-Call Member DM
+          </label>
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #dc2626; cursor: pointer;">
+            <input type="checkbox" id="modal_link_only_breach" style="accent-color: var(--primary-orange);"> Alert Only on Anomaly/Spike (Silent when normal)
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-white" onclick="closeLinkModal()">Cancel</button>
+      <button type="button" class="btn btn-orange" onclick="saveLinkModal()">Save Monitored Link</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">Notification</div>
+
+<script>
+  let ALL_SITES = [];
+  let CURRENT_SITE_ID = null;
+
+  function showToast(msg, isError = false) {
+    const t = document.getElementById("toast");
+    t.innerText = msg;
+    t.style.borderLeftColor = isError ? "var(--accent-red)" : "var(--primary-orange)";
+    t.style.display = "flex";
+    if (window._toastTimer) clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => { t.style.display = "none"; }, isError ? 8000 : 4000);
+  }
+
+  function toggleVisibility(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.classList.contains("secret-mask")) {
+      el.classList.toggle("revealed");
+    } else {
+      el.type = el.type === "password" ? "text" : "password";
+    }
+  }
+
+  window.TAB_CLEAR_PASSWORD = false;
+  window.TAB_CLEAR_TOKEN = false;
+
+  function clearActiveTabUsername() {
+    const el = document.getElementById("tab_cfg_username");
+    if (el) el.value = "";
+    showToast("Username cleared.");
+  }
+
+  function clearActiveTabPassword() {
+    window.TAB_CLEAR_PASSWORD = true;
+    const el = document.getElementById("tab_cfg_password");
+    if (el) {
+      el.value = "";
+      el.placeholder = "Enter password for this dashboard";
+    }
+    showToast("Password marked for removal on Save.");
+  }
+
+  function clearActiveTabToken() {
+    window.TAB_CLEAR_TOKEN = true;
+    const el = document.getElementById("tab_cfg_token");
+    if (el) {
+      el.value = "";
+      el.placeholder = "Paste grafana_session cookie or Token";
+    }
+    const exp = document.getElementById("tab_cfg_token_expiry");
+    if (exp) exp.value = "";
+    const raw = document.getElementById("tab_cfg_raw_cookie_paste");
+    if (raw) raw.value = "";
+    showToast("Session cookie / token marked for removal on Save.");
+  }
+
+  function autoFillCookieFields() {
+    const raw = (document.getElementById('tab_cfg_raw_cookie_paste') ? document.getElementById('tab_cfg_raw_cookie_paste').value : '').trim();
+    if (!raw) {
+      showToast('⚠️ Paste a cookie string first.');
+      return;
+    }
+    let sessVal = '';
+    let expVal = '';
+    if (raw.includes('=')) {
+      raw.split(';').forEach(part => {
+        const kv = part.split('=');
+        if (kv.length >= 2) {
+          const k = kv[0].trim().toLowerCase();
+          const v = kv.slice(1).join('=').trim();
+          if (k === 'grafana_session') sessVal = v;
+          if (k.includes('expiry') || k === 'grafana_session_expiry') expVal = v;
+        }
+      });
+    } else {
+      sessVal = raw;
+    }
+    if (sessVal) {
+      const tokEl = document.getElementById('tab_cfg_token');
+      if (tokEl) tokEl.value = sessVal;
+    }
+    if (expVal) {
+      const expEl = document.getElementById('tab_cfg_token_expiry');
+      if (expEl) expEl.value = expVal;
+    }
+    showToast('✅ Auto-filled Session Key & Expiry fields!');
+  }
+
+  function clearLogs() {
+    document.getElementById("log-output").innerHTML = '<div style="color: #71717a;">[Log cleared]</div>';
+  }
+
+  function getSiteInitials(name) {
+    if (!name) return "S";
+    const parts = name.replace(/[:_\-]/g, " ").trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  }
+
+  async function loadSites(keepActive = true) {
+    try {
+      const res = await fetch("/api/sites");
+      const data = await res.json();
+
+      ALL_SITES = data.sites || [];
+
+      // Update site count metric
+      const count = ALL_SITES.length;
+      document.getElementById("metric-total-sites").innerText =
+        count === 0 ? "0 SITES" :
+        count === 1 ? "1 SITE ACTIVE" : count + " SITES ACTIVE";
+
+      // Update Site Filter Dropdown in Console
+      const filterSelect = document.getElementById("log-site-filter");
+      const currentFilter = filterSelect.value;
+      filterSelect.innerHTML = '<option value="all">All Sites Stream</option>';
+      ALL_SITES.forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s.id;
+        opt.innerText = s.name;
+        filterSelect.appendChild(opt);
+      });
+      if (currentFilter) filterSelect.value = currentFilter;
+
+      // Select default site if needed
+      if (ALL_SITES.length > 0) {
+        if (!CURRENT_SITE_ID || !ALL_SITES.some(s => s.id === CURRENT_SITE_ID)) {
+          CURRENT_SITE_ID = ALL_SITES[0].id;
+        }
+      } else {
+        CURRENT_SITE_ID = null;
+      }
+
+      renderSiteDock();
+
+      if (ALL_SITES.length > 0) {
+        if (!keepActive || !document.getElementById("site_name").value) {
+          populateActiveSite();
+        } else {
+          updateActiveSiteStatusBadge();
+        }
+      } else {
+        // No sites yet — show blank state
+        document.getElementById("topbar-site-name").innerText = "NO SITE SELECTED";
+        document.getElementById("form-site-title").innerText = "SITE SETTINGS";
+        document.getElementById("active-site-id-badge").innerText = "NO SITES YET";
+      }
+    } catch(e) {
+      console.error("loadSites error:", e);
+    }
+  }
+
+  function renderSiteDock() {
+    const dock = document.getElementById("site-dock-list");
+    dock.innerHTML = "";
+
+    if (ALL_SITES.length === 0) {
+      dock.innerHTML = '<div style="color:#3f3f46; font-size:9px; text-align:center; padding:8px 4px; line-height:1.4;">No sites.<br>Click + to add.</div>';
+      return;
+    }
+
+    ALL_SITES.forEach(s => {
+      const btn = document.createElement("div");
+      btn.className = "site-nav-btn " + (s.id === CURRENT_SITE_ID ? "active" : "");
+      btn.onclick = () => switchSite(s.id);
+
+      const state = s.state || {};
+      const isPaused = (s.paused !== false) && (state.is_paused !== false);
+      let dotClass = isPaused ? "dot-amber" : "dot-green";
+      if (state.is_running) dotClass = "dot-orange";
+      if (state.last_status && state.last_status.toLowerCase().includes("error")) dotClass = "dot-red";
+
+      const statusDesc = isPaused ? "PAUSED (STANDBY)" : (state.is_running ? "RUNNING" : "MONITORING ACTIVE");
+      btn.title = `${s.name} [${statusDesc}]`;
+
+      btn.innerHTML = `
+        <div class="site-status-dot ${dotClass}"></div>
+        <span>${getSiteInitials(s.name)}</span>
+        <span style="font-size: 8px; font-weight: 800; color: ${isPaused ? '#d97706' : '#16a34a'}; line-height: 1;">${isPaused ? 'OFF' : 'ON'}</span>
+      `;
+      dock.appendChild(btn);
+    });
+  }
+
+  function switchSite(siteId) {
+    CURRENT_SITE_ID = siteId;
+    ACTIVE_TAB_LINK_ID = null;
+    renderSiteDock();
+    populateActiveSite();
+    fetchLogs();
+  }
+
+  function populateActiveSite() {
+    const site = ALL_SITES.find(s => s.id === CURRENT_SITE_ID);
+    if (!site) return;
+
+    document.getElementById("topbar-site-name").innerText = site.name.toUpperCase();
+    document.getElementById("form-site-title").innerText = "SITE SETTINGS: " + site.name.toUpperCase();
+    document.getElementById("active-site-id-badge").innerText = "ID: " + site.id.toUpperCase();
+    document.getElementById("topbar-site-interval").innerText = "EVERY " + (site.interval_minutes || 30) + " MINS";
+    document.getElementById("topbar-site-channel").innerText = site.slack_channel_id ? "#" + site.slack_channel_id : "#NO-CHANNEL";
+    document.getElementById("metric-interval").innerText = (site.interval_minutes || 30) + " MINS";
+
+    // Form inputs
+    document.getElementById("site_name").value = site.name || "";
+    document.getElementById("interval_minutes").value = site.interval_minutes || 30;
+    document.getElementById("grafana_url").value = site.grafana_url || "";
+    document.getElementById("grafana_username").value = site.grafana_username || "";
+    document.getElementById("grafana_password").value = site.grafana_password_set ? "••••••••••••••••" : "";
+    const tokEl = document.getElementById("grafana_token");
+    if (tokEl) tokEl.value = site.grafana_token_set ? "••••••••••••••••" : "";
+    document.getElementById("slack_channel_id").value = site.slack_channel_id || "";
+    document.getElementById("slack_thread_ts").value = site.slack_thread_ts || "";
+    document.getElementById("slack_message").value = site.slack_message || "*Grafana Snapshot Alert* - {datetime}";
+
+    // Thresholds
+    const t = site.threshold || {};
+    document.getElementById("threshold_enabled").checked = t.enabled !== false;
+    document.getElementById("threshold_metric_type").value = t.metric_type || "row_count";
+    document.getElementById("threshold_operator").value = t.operator || ">";
+    document.getElementById("threshold_value").value = t.value !== undefined ? t.value : "0";
+    document.getElementById("threshold_keywords").value = t.keywords || "";
+    document.getElementById("threshold_colors").value = t.colors || "red, orange, yellow";
+    document.getElementById("threshold_breach_users").value = t.breach_users || "";
+    document.getElementById("threshold_only_alert_on_breach").checked = !!t.only_alert_on_breach;
+
+    // Shifts
+    const sh = site.shifts || {};
+    document.getElementById("shift_morning_hours").value = sh.morning_hours || "06:00-14:00";
+    document.getElementById("shift_morning_users").value = sh.morning_users || "";
+    document.getElementById("shift_afternoon_hours").value = sh.afternoon_hours || "14:00-22:00";
+    document.getElementById("shift_afternoon_users").value = sh.afternoon_users || "";
+    document.getElementById("shift_night_hours").value = sh.night_hours || "22:00-06:00";
+    document.getElementById("shift_night_users").value = sh.night_users || "";
+    document.getElementById("shift_tag_channel").checked = sh.tag_channel !== false;
+    document.getElementById("shift_send_dm").checked = sh.send_dm !== false;
+
+    updateActiveSiteStatusBadge();
+    loadAndRenderSiteLinks();
+  }
+
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  let CURRENT_SITE_LINKS = [];
+  let ACTIVE_TAB_LINK_ID = null;
+
+  async function loadAndRenderSiteLinks() {
+    if (!CURRENT_SITE_ID) return;
+    try {
+      const res = await fetch(`/api/sites/${CURRENT_SITE_ID}/links`);
+      const data = await res.json();
+      CURRENT_SITE_LINKS = data.links || [];
+
+      // Update badge
+      const countEl = document.getElementById("chrome-tab-count-badge");
+      if (countEl) {
+        countEl.innerText = `${CURRENT_SITE_LINKS.length} Link${CURRENT_SITE_LINKS.length === 1 ? '' : 's'}`;
+      }
+
+      // If active tab is not set or not in current list (and not "new"), pick first or "new"
+      if (!ACTIVE_TAB_LINK_ID || (ACTIVE_TAB_LINK_ID !== "new" && !CURRENT_SITE_LINKS.some(l => l.id === ACTIVE_TAB_LINK_ID))) {
+        ACTIVE_TAB_LINK_ID = CURRENT_SITE_LINKS.length > 0 ? CURRENT_SITE_LINKS[0].id : "new";
+      }
+
+      renderChromeTabs();
+    } catch(e) {
+      console.error("Failed loading site links:", e);
+    }
+  }
+
+  function renderChromeTabs() {
+    const tabsBar = document.getElementById("chrome-tabs-bar");
+    const contentPanel = document.getElementById("chrome-tab-content");
+    if (!tabsBar || !contentPanel) return;
+    window.TAB_CLEAR_PASSWORD = false;
+    window.TAB_CLEAR_TOKEN = false;
+
+    tabsBar.innerHTML = "";
+    contentPanel.innerHTML = "";
+
+    const activeSiteObj = ALL_SITES.find(s => s.id === CURRENT_SITE_ID) || {};
+    const siteShifts = activeSiteObj.shifts || {};
+
+    // 1. Render all tabs in tab strip
+    CURRENT_SITE_LINKS.forEach((lk, idx) => {
+      const isActive = lk.id === ACTIVE_TAB_LINK_ID;
+      const isEnabled = lk.enabled !== false;
+      const tab = document.createElement("div");
+      tab.className = `chrome-tab ${isActive ? 'active' : ''}`;
+      tab.title = `${lk.title || 'Link ' + (idx + 1)} (${lk.url || 'No URL'})`;
+      tab.onclick = () => switchLinkTab(lk.id);
+
+      const lkIntervalBadge = Math.max(1, parseInt(lk.interval_minutes, 10) || parseInt(activeSiteObj.interval_minutes, 10) || 1);
+      tab.innerHTML = `
+        <span class="chrome-tab-indicator ${isEnabled ? 'active' : 'paused'}"></span>
+        <span class="chrome-tab-title">${idx + 1}. ${escapeHtml(lk.title || 'Monitored Link')} <span style="font-size: 9.5px; opacity: 0.7; font-weight: 600;">[${lkIntervalBadge}m]</span></span>
+        <button type="button" class="chrome-tab-close" onclick="closeLinkTab('${lk.id}', event)" title="Delete this link tab">✕</button>
+      `;
+      tabsBar.appendChild(tab);
+    });
+
+    // If in "new" draft tab mode, show the draft tab
+    if (ACTIVE_TAB_LINK_ID === "new") {
+      const newTab = document.createElement("div");
+      newTab.className = "chrome-tab active";
+      newTab.title = "Draft New Link";
+      newTab.innerHTML = `
+        <span class="chrome-tab-indicator new"></span>
+        <span class="chrome-tab-title">+ New Link *</span>
+        <button type="button" class="chrome-tab-close" onclick="closeLinkTab('new', event)" title="Cancel draft tab">✕</button>
+      `;
+      tabsBar.appendChild(newTab);
+    }
+
+    // Add "+" (New Tab) Button at the end of tab strip
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.className = "chrome-tab-add-btn";
+    addBtn.title = "Open New Link Tab (Chrome Style)";
+    addBtn.innerHTML = "+";
+    addBtn.onclick = () => addNewLinkTab();
+    tabsBar.appendChild(addBtn);
+
+    // 2. Render Full In-Place Configuration Page for Active Tab
+    const isNew = ACTIVE_TAB_LINK_ID === "new";
+    let lk = null;
+
+    if (isNew) {
+      lk = {
+        title: "",
+        url: "",
+        username: "",
+        password_set: false,
+        token_set: false,
+        interval_minutes: Math.max(1, parseInt(activeSiteObj.interval_minutes, 10) || 1),
+        time_range: "url_default",
+        enabled: true,
+        threshold: {
+          enabled: true,
+          metric_type: "spike_jump",
+          operator: ">",
+          value: "20",
+          keywords: "",
+          colors: "red, orange, yellow",
+          breach_users: ""
+        },
+        shifts: {
+          morning_hours: siteShifts.morning_hours || "06:00-14:00",
+          morning_users: siteShifts.morning_users || "",
+          afternoon_hours: siteShifts.afternoon_hours || "14:00-22:00",
+          afternoon_users: siteShifts.afternoon_users || "",
+          night_hours: siteShifts.night_hours || "22:00-06:00",
+          night_users: siteShifts.night_users || "",
+          tag_channel: siteShifts.tag_channel !== false,
+          send_dm: siteShifts.send_dm !== false
+        },
+        slack_channel_id: "",
+        slack_thread_ts: "",
+        slack_message: "*Grafana Snapshot Alert* - {datetime}",
+        send_channel: true,
+        send_dm: true,
+        only_on_breach: false
+      };
+    } else {
+      lk = CURRENT_SITE_LINKS.find(l => l.id === ACTIVE_TAB_LINK_ID);
+    }
+
+    if (!lk && CURRENT_SITE_LINKS.length === 0) {
+      contentPanel.innerHTML = `
+        <div style="background: #ffffff; border: 1.5px dashed #d4d4d8; border-radius: 4px; padding: 32px 16px; text-align: center; color: #71717a;">
+          <div style="font-size: 15px; font-weight: 800; color: #18181b;">No monitored links configured for this site yet.</div>
+          <div style="font-size: 11.5px; margin-top: 6px; margin-bottom: 14px;">Add your first dashboard or panel link to monitor anomalies, spikes, and dispatch alerts.</div>
+          <button type="button" class="btn btn-orange" onclick="addNewLinkTab()" style="padding: 0 16px; height: 32px; font-size: 12px;">
+            + Open First Link Tab
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    if (!lk) return;
+
+    const th = lk.threshold || {};
+    const isEnabled = lk.enabled !== false;
+    const thEnabled = th.enabled !== false;
+    const mType = th.metric_type || "spike_jump";
+    const op = th.operator || ">";
+    const thVal = th.value !== undefined ? th.value : "20";
+    const siteFallbackInt = Math.max(1, parseInt(activeSiteObj.interval_minutes, 10) || 1);
+    let intVal = parseInt(lk.interval_minutes, 10);
+    if (isNaN(intVal) || intVal <= 0) intVal = siteFallbackInt;
+    const stdInts = [1, 2, 5, 10, 15, 30, 60, 120];
+    const isCustomInt = !stdInts.includes(intVal);
+    const trVal = lk.time_range || "url_default";
+
+    // Synchronize topbar and metric card to the active tab's monitoring interval
+    const topbarIntEl = document.getElementById("topbar-site-interval");
+    if (topbarIntEl) topbarIntEl.innerText = "EVERY " + intVal + " MINS";
+    const metricIntEl = document.getElementById("metric-interval");
+    if (metricIntEl) metricIntEl.innerText = intVal + " MINS";
+    const hiddenIntEl = document.getElementById("interval_minutes");
+    if (hiddenIntEl) hiddenIntEl.value = String(intVal);
+
+    let displayTokenKey = "";
+    let displayExpiryVal = "";
+    if (lk.token) {
+      const tStr = String(lk.token).trim();
+      if (tStr.includes("grafana_session=")) {
+        const m = tStr.match(/grafana_session=([^;]+)/);
+        if (m) displayTokenKey = m[1].trim();
+      } else if (!tStr.startsWith("\u2022") && !tStr.includes("=")) {
+        displayTokenKey = tStr;
+      }
+      if (tStr.includes("grafana_session_expiry=")) {
+        const mExp = tStr.match(/grafana_session_expiry=([^;]+)/);
+        if (mExp) displayExpiryVal = mExp[1].trim();
+      }
+    }
+
+    // Shift settings for this link (with fallback to site-level shifts)
+    const sh = lk.shifts || siteShifts;
+    const mHours = sh.morning_hours || "06:00-14:00";
+    const aHours = sh.afternoon_hours || "14:00-22:00";
+    const nHours = sh.night_hours || "22:00-06:00";
+
+    // Compute active shift dynamically for this link
+    const nowDt = new Date();
+    const curMin = nowDt.getHours() * 60 + nowDt.getMinutes();
+    function parseMin(s) {
+      if (!s || !s.includes(":")) return 0;
+      const parts = s.split(":");
+      return (parseInt(parts[0], 10) || 0) * 60 + (parseInt(parts[1], 10) || 0);
+    }
+    function inRange(cur, start, end) {
+      if (start <= end) return cur >= start && cur < end;
+      return cur >= start || cur < end;
+    }
+    let activeShiftLabel = "ACTIVE SHIFT DETECTED";
+    try {
+      const [ms, me] = mHours.split("-");
+      const [as, ae] = aHours.split("-");
+      const [ns, ne] = nHours.split("-");
+      if (inRange(curMin, parseMin(ms), parseMin(me))) {
+        activeShiftLabel = `ACTIVE: MORNING SHIFT (${mHours})`;
+      } else if (inRange(curMin, parseMin(as), parseMin(ae))) {
+        activeShiftLabel = `ACTIVE: AFTERNOON SHIFT (${aHours})`;
+      } else if (inRange(curMin, parseMin(ns), parseMin(ne))) {
+        activeShiftLabel = `ACTIVE: NIGHT SHIFT (${nHours})`;
+      }
+    } catch(e) {
+      activeShiftLabel = "ACTIVE SHIFT DETECTED";
+    }
+
+    // Section collapse state: default keep Sections 1 & 2 open, Sections 3, 4, 5 collapsed for clean layout
+    window.LINK_SECTIONS_STATE = window.LINK_SECTIONS_STATE || {
+      "sec-tab-thresh": true,
+      "sec-tab-slack": true,
+      "sec-tab-shifts": true
+    };
+    const cSecTarget = window.LINK_SECTIONS_STATE["sec-tab-target"] ? "collapsed" : "";
+    const cSecCreds = window.LINK_SECTIONS_STATE["sec-tab-creds"] ? "collapsed" : "";
+    const cSecThresh = (window.LINK_SECTIONS_STATE["sec-tab-thresh"] !== false) ? "collapsed" : "";
+    const cSecSlack = (window.LINK_SECTIONS_STATE["sec-tab-slack"] !== false) ? "collapsed" : "";
+    const cSecShifts = (window.LINK_SECTIONS_STATE["sec-tab-shifts"] !== false) ? "collapsed" : "";
+
+    const activeSiteState = activeSiteObj.state || {};
+    const isSitePaused = (activeSiteObj.paused !== false) && (activeSiteState.is_paused !== false);
+
+    contentPanel.innerHTML = `
+      <!-- Link Banner Header -->
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-dark); padding-bottom: 12px; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <div style="font-family: 'Barlow Condensed', sans-serif; font-size: 18px; font-weight: 800; color: var(--text-dark);">
+            ${isNew ? 'NEW MONITORED LINK TAB' : `LINK CONFIG: ${escapeHtml(lk.title || 'Monitored Link')}`}
+          </div>
+          ${!isNew ? `
+            <span id="tab-header-status-tag" class="cell-tag ${isEnabled ? 'tag-green' : 'tag-amber'}" style="font-size: 11px; padding: 3px 8px;">
+              ${isEnabled ? '● ACTIVE (MONITORED)' : '○ PAUSED'}
+            </span>
+            ${lk.last_status ? `<span style="font-size: 10.5px; color: #71717a; font-family: monospace; background: #f4f4f5; padding: 2px 6px; border-radius: 3px; border: 1px solid #e4e4e7;">Status: <b>${escapeHtml(lk.last_status)}</b></span>` : ''}
+            ${lk.last_reading !== null && lk.last_reading !== undefined ? `<span style="font-size: 10.5px; color: var(--primary-orange); font-family: monospace; font-weight: 700; background: #fff7ed; padding: 2px 6px; border-radius: 3px; border: 1px solid #fdba74;">Last Value: ${escapeHtml(String(lk.last_reading))}</span>` : ''}
+            ${lk.last_run_time ? `<span style="font-size: 10.5px; color: #71717a; font-family: monospace;">Last Run: ${escapeHtml(lk.last_run_time)}</span>` : ''}
+          ` : `
+            <span class="badge-subtle" style="color: var(--primary-orange); border-color: var(--primary-orange); font-weight: 800;">DRAFT TAB (UNSAVED)</span>
+          `}
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <button type="button" class="btn btn-orange" style="height: 28px; font-size: 11px; padding: 0 12px; display: inline-flex; align-items: center;" onclick="saveActiveTabLink()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            Save Link Config
+          </button>
+          ${!isNew ? `
+            <button type="button" class="btn btn-danger-outline" style="height: 28px; font-size: 11px; padding: 0 8px; border-color: #fca5a5; color: #dc2626; display: inline-flex; align-items: center;" onclick="deleteActiveTabLink()" title="Delete this link tab">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+              Delete Tab
+            </button>
+          ` : `
+            <button type="button" class="btn btn-white" style="height: 28px; font-size: 11px; padding: 0 10px;" onclick="closeLinkTab('new', event)">
+              Cancel
+            </button>
+          `}
+        </div>
+      </div>
+
+      <!-- Link Monitoring State & Quick Action Banner (Single Authoritative Tab Monitor Control) -->
+      ${!isNew ? `
+        <div id="link-monitoring-banner" class="monitoring-control-card ${isEnabled ? 'running-state' : 'paused-state'}" style="margin-bottom: 14px; padding: 12px 16px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; border: 1.5px solid ${isEnabled ? '#86efac' : '#fcd34d'}; background: ${isEnabled ? '#f0fdf4' : '#fffbeb'};">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div id="tab-status-indicator-dot" class="status-indicator-circle ${isEnabled ? 'running' : 'paused'}" style="width: 12px; height: 12px; border-radius: 50%; background: ${isEnabled ? '#22c55e' : '#f59e0b'}; box-shadow: 0 0 8px ${isEnabled ? '#22c55e' : '#f59e0b'};"></div>
+            <div>
+              <div id="tab-status-headline" style="font-family: 'Barlow Condensed', sans-serif; font-size: 15.5px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; color: ${isEnabled ? '#15803d' : '#b45309'};">
+                ${isEnabled ? `TAB MONITORING ACTIVE (EVERY ${intVal}M)` : 'TAB MONITORING PAUSED'}
+              </div>
+              <div id="tab-status-subline" style="font-size: 11.5px; color: #52525b;">
+                ${isEnabled ? `Automated checks for this link run every ${intVal} minutes. Alerts route to configured Slack destination.` : 'This link tab is currently paused and skipped in monitoring cycles. Click Start Tab Monitoring to activate.'}
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn" id="btn-tab-toggle-monitoring" onclick="toggleActiveTabLink('${lk.id}')" style="font-size: 12px; font-weight: 700; padding: 6px 16px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 4px; ${isEnabled ? 'background: #fff; border: 1.5px solid #d97706; color: #b45309;' : 'background: #16a34a; border: 1px solid #15803d; color: #fff;'}">
+            ${isEnabled ? `
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+              <span>Pause Tab Monitoring</span>
+            ` : `
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              <span>Start Tab Monitoring</span>
+            `}
+          </button>
+        </div>
+      ` : ''}
+
+      <!-- SECTION 1: Target Link & Cadence Window (Collapsible) -->
+      <div class="link-section-card ${cSecTarget}" id="sec-tab-target">
+        <div class="link-section-header" onclick="toggleLinkSection('sec-tab-target', event)" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ') toggleLinkSection('sec-tab-target', event)">
+          <div class="link-section-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+            Target Link &amp; Cadence Window
+            <span class="link-section-badge">— URL, active state &amp; check cadence</span>
+          </div>
+          <span class="link-section-chevron">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </span>
+        </div>
+        <div class="link-section-body">
+          <div class="field-row" style="grid-template-columns: 2fr 1fr; margin-bottom: 12px;">
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_title">Link Friendly Title</label>
+              <input type="text" id="tab_cfg_title" class="input-field" placeholder="e.g. Bridge Disk Utilization, Aging Queue, Outbound Orders" value="${escapeHtml(lk.title || '')}">
+            </div>
+            <div class="form-field">
+              <label class="form-label">Tab Monitoring Status</label>
+              <div style="display: flex; align-items: center; height: 32px; gap: 8px;">
+                <span id="tab-section-status-tag" class="cell-tag ${isEnabled ? 'tag-green' : 'tag-amber'}" style="font-size: 11px; padding: 4px 10px; font-weight: 700;">
+                  ${isEnabled ? '● ACTIVE (MONITORED)' : '○ PAUSED'}
+                </span>
+                <input type="hidden" id="tab_cfg_enabled" value="${isEnabled ? 'true' : 'false'}">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-field" style="margin-bottom: 12px;">
+            <label class="form-label" for="tab_cfg_url">
+              <span>Grafana Target URL</span>
+              <span class="badge-subtle">Full dashboard or specific panel URL</span>
+            </label>
+            <input type="text" id="tab_cfg_url" class="input-field input-code" placeholder="http://172.19.40.56:3000/d/... or /d-solo/..." value="${escapeHtml(lk.url || '')}" required>
+          </div>
+
+          <div class="field-row">
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_interval">
+                <span>Monitoring Interval (Minutes)</span>
+                <span class="badge-subtle">Cadence for this tab</span>
+              </label>
+              <select id="tab_cfg_interval" class="input-field" onchange="onTabIntervalChange()">
+                <option value="1" ${intVal === 1 ? 'selected' : ''}>Every 1 Minute (High Priority)</option>
+                <option value="2" ${intVal === 2 ? 'selected' : ''}>Every 2 Minutes</option>
+                <option value="5" ${intVal === 5 ? 'selected' : ''}>Every 5 Minutes</option>
+                <option value="10" ${intVal === 10 ? 'selected' : ''}>Every 10 Minutes</option>
+                <option value="15" ${intVal === 15 ? 'selected' : ''}>Every 15 Minutes</option>
+                <option value="30" ${intVal === 30 ? 'selected' : ''}>Every 30 Minutes</option>
+                <option value="60" ${intVal === 60 ? 'selected' : ''}>Every 1 Hour (60m)</option>
+                <option value="120" ${intVal === 120 ? 'selected' : ''}>Every 2 Hours (120m)</option>
+                <option value="custom" ${isCustomInt ? 'selected' : ''}>Custom Minutes...</option>
+              </select>
+              <input type="number" id="tab_cfg_interval_custom" class="input-field input-code" style="display: ${isCustomInt ? 'block' : 'none'}; margin-top: 6px;" min="1" max="1440" placeholder="Custom minutes (e.g. 45)" value="${isCustomInt ? intVal : ''}" oninput="onTabIntervalChange()">
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_timerange">
+                <span>Panel Time Window (Query Range)</span>
+                <span class="badge-subtle">Grafana &amp;from=&amp;to=</span>
+              </label>
+              <select id="tab_cfg_timerange" class="input-field">
+                <option value="url_default" ${trVal === 'url_default' ? 'selected' : ''}>Preserve from URL (No override)</option>
+                <option value="now-5m" ${trVal === 'now-5m' ? 'selected' : ''}>Last 5 Minutes (now-5m)</option>
+                <option value="now-15m" ${trVal === 'now-15m' ? 'selected' : ''}>Last 15 Minutes (now-15m)</option>
+                <option value="now-30m" ${trVal === 'now-30m' ? 'selected' : ''}>Last 30 Minutes (now-30m)</option>
+                <option value="now-1h" ${trVal === 'now-1h' ? 'selected' : ''}>Last 1 Hour (now-1h)</option>
+                <option value="now-3h" ${trVal === 'now-3h' ? 'selected' : ''}>Last 3 Hours (now-3h)</option>
+                <option value="now-6h" ${trVal === 'now-6h' ? 'selected' : ''}>Last 6 Hours (now-6h)</option>
+                <option value="now-12h" ${trVal === 'now-12h' ? 'selected' : ''}>Last 12 Hours (now-12h)</option>
+                <option value="now-24h" ${trVal === 'now-24h' ? 'selected' : ''}>Last 24 Hours (now-24h)</option>
+                <option value="now-2d" ${trVal === 'now-2d' ? 'selected' : ''}>Last 2 Days (now-2d)</option>
+                <option value="now-7d" ${trVal === 'now-7d' ? 'selected' : ''}>Last 7 Days (now-7d)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 2: Grafana Authentication Credentials (Collapsible) -->
+      <div class="link-section-card ${cSecCreds}" id="sec-tab-creds">
+        <div class="link-section-header" onclick="toggleLinkSection('sec-tab-creds', event)" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ') toggleLinkSection('sec-tab-creds', event)">
+          <div class="link-section-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            Grafana Authentication Credentials
+            <span class="link-section-badge">— Dedicated login profile for this link</span>
+          </div>
+          <span class="link-section-chevron">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </span>
+        </div>
+        <div class="link-section-body">
+          <div class="field-row">
+            <div class="form-field">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                <label class="form-label" for="tab_cfg_username" style="margin-bottom:0;">Dedicated Username</label>
+                <button type="button" class="badge-subtle" onclick="clearActiveTabUsername()" style="cursor: pointer; border: 1px solid #d4d4d8; background: #fff;" title="Clear Username">Clear</button>
+              </div>
+              <input type="text" id="tab_cfg_username" name="usr_${Date.now()}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" class="input-field input-code" placeholder="Enter username for this dashboard (optional)" value="${escapeHtml(lk.username || '')}">
+            </div>
+            <div class="form-field">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px;">
+                <label class="form-label" for="tab_cfg_password" style="margin-bottom:0;">Dedicated Password</label>
+                ${lk.password_set ? `<button type="button" class="badge-subtle" onclick="clearActiveTabPassword()" style="cursor: pointer; border: 1px solid #fca5a5; color: #dc2626; background: #fff;" title="Remove saved password for this link">Clear Password</button>` : ''}
+              </div>
+              <div class="input-box">
+                <input type="text" id="tab_cfg_password" name="pwd_${Date.now()}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" class="input-field input-code secret-mask" placeholder="${lk.password_set ? '•••••••••••••••• (Password Saved)' : 'Enter password for this dashboard'}">
+                <button type="button" class="input-eye-btn" onclick="toggleVisibility('tab_cfg_password')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="form-field" style="margin-top: 14px; background: #fff7ed; border: 1.5px solid #fdba74; border-radius: 8px; padding: 12px 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <label class="form-label" style="margin-bottom:0; font-weight: 700; color: #9a3412; font-size: 13px; display: flex; align-items: center; gap: 6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9a3412" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                <span>Grafana Session Authentication (Bypasses Google SSO)</span>
+              </label>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <button type="button" class="badge-subtle" onclick="clearActiveTabToken()" style="cursor: pointer; border: 1px solid #fdba74; color: #c2410c; background: #fff; padding: 2px 8px;" title="Clear saved session key">Clear Key</button>
+              </div>
+            </div>
+
+            <!-- Two-column grid: Field 1 (Alphabets & Numbers) and Field 2 (Numbers Only) -->
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 8px;">
+              <div>
+                <label style="font-size: 11px; font-weight: 700; color: #374151; display: flex; align-items: center; gap: 4px; margin-bottom: 3px;">
+                  <span>Field 1: Session Key (Alphabets &amp; Numbers)</span>
+                  <span style="background: #e0e7ff; color: #3730a3; font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 3px;">grafana_session</span>
+                </label>
+                <div class="input-box">
+                  <input type="text" id="tab_cfg_token" name="tok_${Date.now()}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" class="input-field input-code" style="font-family: monospace; font-size: 12px; background: #fff;" placeholder="e.g. 8331fae5ee5755669e11078cb7c2f1bd" value="${escapeHtml(displayTokenKey)}">
+                  <button type="button" class="input-eye-btn" onclick="toggleVisibility('tab_cfg_token')">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label style="font-size: 11px; font-weight: 700; color: #374151; display: flex; align-items: center; gap: 4px; margin-bottom: 3px;">
+                  <span>Field 2: Expiry (Numbers Only)</span>
+                  <span style="background: #fef3c7; color: #92400e; font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 3px;">Auto +1 Year</span>
+                </label>
+                <input type="text" id="tab_cfg_token_expiry" class="input-field input-code" style="font-family: monospace; font-size: 12px; background: #fff;" placeholder="Auto-extended (+1 year)" value="${escapeHtml(displayExpiryVal)}">
+              </div>
+            </div>
+
+            <!-- Smart Auto-Fill from Raw Full Cookie String -->
+            <div style="margin-top: 6px; padding: 8px 10px; background: #fff; border: 1px dashed #fb923c; border-radius: 6px;">
+              <label style="font-size: 11px; font-weight: 700; color: #9a3412; display: flex; align-items: center; gap: 5px; margin-bottom: 4px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9a3412" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                <span>Quick Auto-Fill: Paste raw cookie from Chrome (Auto-detects alphabets key &amp; numbers):</span>
+              </label>
+              <div style="display: flex; gap: 6px;">
+                <input type="text" id="tab_cfg_raw_cookie_paste" class="input-field" style="font-size: 11.5px; height: 32px;" placeholder="Paste cookie string (e.g. grafana_session=8331...; grafana_session_expiry=1791...)">
+                <button type="button" onclick="autoFillCookieFields()" style="white-space: nowrap; cursor: pointer; background: #ea580c; color: #fff; border: none; border-radius: 4px; font-size: 11px; font-weight: 700; padding: 0 14px;">Parse &amp; Fill</button>
+              </div>
+            </div>
+
+            <div style="font-size: 10.5px; color: #78716c; margin-top: 8px; line-height: 1.4;">
+              <b>How to get from Chrome:</b> Open dashboard → Press <kbd style="background:#e4e4e7; padding:1px 4px; border-radius:3px;">F12</kbd> → <b>Application</b> tab → <b>Cookies</b> → Copy the <b>Value</b> of <b><code>grafana_session</code></b> (alphabets &amp; numbers) and paste into Field 1 above → Click <b>Save Link Config</b>.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 3: Anomaly & Sudden Spike Rules (Collapsible) -->
+      <div class="link-section-card ${cSecThresh}" id="sec-tab-thresh">
+        <div class="link-section-header" onclick="toggleLinkSection('sec-tab-thresh', event)" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ') toggleLinkSection('sec-tab-thresh', event)">
+          <div class="link-section-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+            Anomaly &amp; Sudden Spike Threshold Rules
+            <span class="link-section-badge">— Metric triggers, spike deltas &amp; status inspection</span>
+          </div>
+          <span class="link-section-chevron">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </span>
+        </div>
+        <div class="link-section-body">
+          <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #52525b; cursor: pointer;">
+              <input type="checkbox" id="tab_cfg_thresh_enabled" ${thEnabled ? 'checked' : ''} style="accent-color: var(--primary-orange);"> Enable Anomaly Engine for this Link
+            </label>
+          </div>
+
+          <div class="field-row-3">
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_metric_type">Metric Trigger Type</label>
+              <select id="tab_cfg_metric_type" class="input-field">
+                <option value="spike_jump" ${mType === 'spike_jump' ? 'selected' : ''}>Sudden Spike / Surge (% or Delta)</option>
+                <option value="number_val" ${mType === 'number_val' ? 'selected' : ''}>Numeric KPI / Gauge Ceiling</option>
+                <option value="row_count" ${mType === 'row_count' ? 'selected' : ''}>Table Row Count</option>
+                <option value="color_status" ${mType === 'color_status' ? 'selected' : ''}>Status Color (Red / Yellow)</option>
+                <option value="keyword" ${mType === 'keyword' ? 'selected' : ''}>Alert Keyword Match</option>
+                <option value="any" ${mType === 'any' ? 'selected' : ''}>Any Anomaly (All Combined)</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_operator">Operator</label>
+              <select id="tab_cfg_operator" class="input-field">
+                <option value=">" ${op === '>' ? 'selected' : ''}>&gt; (Greater than)</option>
+                <option value=">=" ${op === '>=' ? 'selected' : ''}>&gt;= (Greater or equal)</option>
+                <option value="<" ${op === '<' ? 'selected' : ''}>&lt; (Less than)</option>
+                <option value="<=" ${op === '<=' ? 'selected' : ''}>&lt;= (Less or equal)</option>
+                <option value="==" ${op === '==' ? 'selected' : ''}>== (Equals)</option>
+                <option value="!=" ${op === '!=' ? 'selected' : ''}>!= (Not equals)</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_value">
+                <span>Threshold Value</span>
+                <span class="badge-subtle">e.g. 20 for +20% surge</span>
+              </label>
+              <input type="text" id="tab_cfg_value" class="input-field input-code" value="${escapeHtml(thVal !== undefined ? thVal : '20')}">
+            </div>
+          </div>
+
+          <div class="field-row" style="margin-top: 8px;">
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_keywords">Alert Keywords (comma-separated)</label>
+              <input type="text" id="tab_cfg_keywords" class="input-field input-code" placeholder="e.g. error, critical, breach, failed" value="${escapeHtml(th.keywords || '')}">
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_colors">Trigger Colors</label>
+              <input type="text" id="tab_cfg_colors" class="input-field input-code" value="${escapeHtml(th.colors || 'red, orange, yellow')}">
+            </div>
+          </div>
+
+          <div class="form-field" style="margin-top: 8px;">
+            <label class="form-label" for="tab_cfg_breach_users">Always Tag People on Breach (Slack Member IDs)</label>
+            <input type="text" id="tab_cfg_breach_users" class="input-field input-code" placeholder="e.g. U01234567, U08765432" value="${escapeHtml(th.breach_users || '')}">
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 4: Slack Alert Routing & Destinations (Collapsible) -->
+      <div class="link-section-card ${cSecSlack}" id="sec-tab-slack">
+        <div class="link-section-header" onclick="toggleLinkSection('sec-tab-slack', event)" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ') toggleLinkSection('sec-tab-slack', event)">
+          <div class="link-section-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            Slack Alert Routing &amp; Destinations
+            <span class="link-section-badge">— Channel ID, thread &amp; notification rules</span>
+          </div>
+          <span class="link-section-chevron">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </span>
+        </div>
+        <div class="link-section-body">
+          <div class="field-row">
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_channel">Target Channel (C...) OR User Member IDs (U... separated by commas)</label>
+              <input type="text" id="tab_cfg_channel" class="input-field input-code" oninput="updateDeliveryHint()" placeholder="e.g. C05BVQU68GH (Channel) or U0BJ1CP982V, U04RR0S1389 (1-on-1 DMs)" value="${escapeHtml(lk.slack_channel_id || '')}">
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_thread">Thread Timestamp (Optional)</label>
+              <input type="text" id="tab_cfg_thread" class="input-field input-code" placeholder="e.g. 1789370242.463359" value="${escapeHtml(lk.slack_thread_ts || '')}">
+            </div>
+          </div>
+          <div class="form-field" style="margin-top: 6px;">
+            <label class="form-label" for="tab_cfg_message">Custom Slack Message Template</label>
+            <input type="text" id="tab_cfg_message" class="input-field input-code" value="${escapeHtml(lk.slack_message || '*Grafana Snapshot Alert* - {datetime}')}">
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #27272a; cursor: pointer;">
+              <input type="checkbox" id="tab_cfg_send_channel" onchange="updateDeliveryHint()" ${lk.send_channel !== false ? 'checked' : ''} style="accent-color: var(--primary-orange);"> Post Snapshot to Slack Channel
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #27272a; cursor: pointer;">
+              <input type="checkbox" id="tab_cfg_send_dm" onchange="updateDeliveryHint()" ${lk.send_dm !== false ? 'checked' : ''} style="accent-color: var(--primary-orange);"> Send Alert &amp; Snapshot to On-Call Member DM
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #dc2626; cursor: pointer;">
+              <input type="checkbox" id="tab_cfg_only_breach" ${lk.only_on_breach ? 'checked' : ''} style="accent-color: var(--primary-orange);"> Alert Only on Anomaly/Spike (Silent when normal)
+            </label>
+          </div>
+          <div id="tab-delivery-mode-hint" style="font-size: 11px; margin-top: 8px; padding: 6px 10px; border-radius: 4px; background: #f4f4f5; border: 1px solid #e4e4e7; color: #52525b;"></div>
+        </div>
+      </div>
+
+      <!-- SECTION 5: On-Duty Shift Schedule & Escalation (Collapsible) -->
+      <div class="link-section-card ${cSecShifts}" id="sec-tab-shifts">
+        <div class="link-section-header" onclick="toggleLinkSection('sec-tab-shifts', event)" role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ') toggleLinkSection('sec-tab-shifts', event)">
+          <div class="link-section-title">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            On-Duty Shift Schedule &amp; Escalation (3 Shifts)
+            <span class="link-section-badge">— Morning, afternoon &amp; night shift rotation</span>
+          </div>
+          <span class="link-section-chevron">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </span>
+        </div>
+        <div class="link-section-body">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+            <span style="font-size: 11px; color: #71717a;">Route alerts and snapshots to active on-duty personnel based on shift schedule.</span>
+            <span class="badge-subtle badge-orange-tag" id="tab-active-shift-badge">${escapeHtml(activeShiftLabel)}</span>
+          </div>
+
+          <!-- Morning -->
+          <div class="field-row" style="grid-template-columns: 130px 1fr; margin-bottom: 8px;">
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_shift_morning_hours">Morning</label>
+              <input type="text" id="tab_cfg_shift_morning_hours" class="input-field input-code" value="${escapeHtml(mHours)}">
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_shift_morning_users">Slack Member IDs (starts with U)</label>
+              <input type="text" id="tab_cfg_shift_morning_users" class="input-field input-code" placeholder="e.g. U01234567, U09876543" value="${escapeHtml(sh.morning_users || '')}">
+            </div>
+          </div>
+
+          <!-- Afternoon -->
+          <div class="field-row" style="grid-template-columns: 130px 1fr; margin-bottom: 8px;">
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_shift_afternoon_hours">Afternoon</label>
+              <input type="text" id="tab_cfg_shift_afternoon_hours" class="input-field input-code" value="${escapeHtml(aHours)}">
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_shift_afternoon_users">Slack Member IDs (starts with U)</label>
+              <input type="text" id="tab_cfg_shift_afternoon_users" class="input-field input-code" placeholder="e.g. U02345678" value="${escapeHtml(sh.afternoon_users || '')}">
+            </div>
+          </div>
+
+          <!-- Night -->
+          <div class="field-row" style="grid-template-columns: 130px 1fr; margin-bottom: 8px;">
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_shift_night_hours">Night</label>
+              <input type="text" id="tab_cfg_shift_night_hours" class="input-field input-code" value="${escapeHtml(nHours)}">
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="tab_cfg_shift_night_users">Slack Member IDs (starts with U)</label>
+              <input type="text" id="tab_cfg_shift_night_users" class="input-field input-code" placeholder="e.g. U03456789" value="${escapeHtml(sh.night_users || '')}">
+            </div>
+          </div>
+
+          <div class="field-row" style="margin-top: 8px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #52525b; cursor: pointer;">
+              <input type="checkbox" id="tab_cfg_shift_tag_channel" ${sh.tag_channel !== false ? 'checked' : ''} style="accent-color: var(--primary-orange);"> Tag on-duty members in Channel
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #52525b; cursor: pointer;">
+              <input type="checkbox" id="tab_cfg_shift_send_dm" ${sh.send_dm !== false ? 'checked' : ''} style="accent-color: var(--primary-orange);"> Send Alert &amp; Snapshot to their DM
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Link Tab Actions Bar (All Action Buttons in One Clean Horizontal Line) -->
+      <div style="border-top: 1.5px solid #e4e4e7; padding-top: 14px; margin-top: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 6px;">
+          <div style="font-size: 11px; font-weight: 800; color: #52525b; text-transform: uppercase; letter-spacing: 0.5px;">
+            Link Operations &amp; Verification
+          </div>
+          <div style="font-size: 11px; color: #71717a;">
+            ${!isNew ? `Tab Link ID: <span style="font-family: monospace; font-weight: 700; color: #27272a;">${escapeHtml(lk.id)}</span>` : 'Draft link tab — click Save Link Config to persist to site.'}
+          </div>
+        </div>
+
+        <!-- Single Unified Action Bar in One Horizontal Line -->
+        <div style="display: flex; gap: 8px; align-items: center; background: #fafafa; border: 1.5px solid var(--border-dark); border-radius: 6px; padding: 8px 12px; overflow-x: auto; white-space: nowrap;">
+          <!-- Primary Save Button -->
+          <button type="button" class="btn btn-orange" id="btn-tab-save" onclick="saveActiveTabLink()" style="font-size: 11.5px; font-weight: 700; height: 32px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;" title="Persists all tab settings, schedules, credentials, and destinations.">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            Save Link Config
+          </button>
+
+          <div style="width: 1px; height: 22px; background: #d4d4d8; margin: 0 2px; flex-shrink: 0;"></div>
+
+          <!-- Diagnostic & Manual Tools -->
+          <button type="button" class="btn btn-white" id="btn-tab-preview" onclick="previewActiveTabLinkSnapshot()" style="font-size: 11px; height: 32px; padding: 0 11px; display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;" title="Headless Screenshot Preview of this Link (opens popup)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+            Snapshot Preview
+          </button>
+
+          <button type="button" class="btn btn-white" id="btn-tab-extract" onclick="previewActiveTabLinkData()" style="font-size: 11px; height: 32px; padding: 0 11px; display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;" title="Extract and Inspect Active Link Dashboard Text &amp; Thresholds">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+            Data Extraction
+          </button>
+
+          <button type="button" class="btn btn-white" id="btn-tab-slack" onclick="testActiveTabLinkSlack()" style="font-size: 11px; height: 32px; padding: 0 11px; display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;" title="Test Slack Connectivity for this Link">
+            <svg width="13" height="13" viewBox="0 0 128 128"><path d="M26.2 78.4a12.8 12.8 0 1 1-12.8-12.8h12.8v12.8zm6.5 0a12.8 12.8 0 0 1 25.6 0v32.2a12.8 12.8 0 1 1-25.6 0V78.4z" fill="#E01E5A"/><path d="M49.6 26.2a12.8 12.8 0 1 1 12.8-12.8v12.8H49.6zm0 6.5a12.8 12.8 0 0 1 0 25.6H17.4a12.8 12.8 0 1 1 0-25.6h32.2z" fill="#36C5F0"/><path d="M101.8 49.6a12.8 12.8 0 1 1 12.8 12.8h-12.8V49.6zm-6.5 0a12.8 12.8 0 0 1-25.6 0V17.4a12.8 12.8 0 1 1 25.6 0v32.2z" fill="#2EB67D"/><path d="M78.4 101.8a12.8 12.8 0 1 1-12.8 12.8v-12.8h12.8zm0-6.5a12.8 12.8 0 0 1 0-25.6h32.2a12.8 12.8 0 1 1 0 25.6H78.4z" fill="#ECB22E"/></svg>
+            Ping Slack
+          </button>
+
+          <button type="button" class="btn btn-white" id="btn-tab-dm" onclick="testActiveTabLinkDM()" style="font-size: 11px; height: 32px; padding: 0 11px; display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;" title="Send a Test Direct Message to On-Call Member for this Link">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            Test DM
+          </button>
+
+          <div style="width: 1px; height: 22px; background: #d4d4d8; margin: 0 2px; flex-shrink: 0;"></div>
+
+          <!-- Instant Test Run Button -->
+          <button type="button" class="btn btn-dark" id="btn-tab-run" onclick="runActiveTabLink()" style="font-size: 11px; height: 32px; padding: 0 13px; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;" title="Execute single immediate test capture for this link now">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--primary-orange)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            Instant Test Run
+          </button>
+        </div>
+      </div>
+    `;
+    updateActiveSiteStatusBadge();
+    updateDeliveryHint();
+  }
+
+  function switchLinkTab(linkId) {
+    ACTIVE_TAB_LINK_ID = linkId;
+    renderChromeTabs();
+  }
+
+  function addNewLinkTab() {
+    ACTIVE_TAB_LINK_ID = "new";
+    renderChromeTabs();
+    const tb = document.getElementById("chrome-tabs-bar");
+    if (tb) tb.scrollLeft = tb.scrollWidth;
+    setTimeout(() => {
+      const titleInput = document.getElementById("tab_cfg_title");
+      if (titleInput) titleInput.focus();
+    }, 50);
+  }
+
+  async function closeLinkTab(linkId, event) {
+    if (event) event.stopPropagation();
+    if (!CURRENT_SITE_ID) return;
+
+    if (linkId === "new") {
+      ACTIVE_TAB_LINK_ID = CURRENT_SITE_LINKS.length > 0 ? CURRENT_SITE_LINKS[0].id : null;
+      renderChromeTabs();
+      return;
+    }
+
+    const lk = CURRENT_SITE_LINKS.find(l => l.id === linkId);
+    const title = lk ? lk.title : "this link";
+    if (!confirm(`Are you sure you want to delete tab '${title}'?`)) return;
+
+    try {
+      const res = await fetch(`/api/sites/${CURRENT_SITE_ID}/links/${linkId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Link tab deleted.");
+        CURRENT_SITE_LINKS = CURRENT_SITE_LINKS.filter(l => l.id !== linkId);
+        if (ACTIVE_TAB_LINK_ID === linkId) {
+          ACTIVE_TAB_LINK_ID = CURRENT_SITE_LINKS.length > 0 ? CURRENT_SITE_LINKS[0].id : "new";
+        }
+        await loadAndRenderSiteLinks();
+      } else {
+        showToast("Error deleting link: " + data.error, true);
+      }
+    } catch(e) {
+      showToast("Network error deleting link", true);
+    }
+  }
+
+  async function deleteActiveTabLink() {
+    if (!CURRENT_SITE_ID || !ACTIVE_TAB_LINK_ID || ACTIVE_TAB_LINK_ID === "new") return;
+    await closeLinkTab(ACTIVE_TAB_LINK_ID);
+  }
+
+  function onTabIntervalChange() {
+    const sel = document.getElementById("tab_cfg_interval");
+    const cust = document.getElementById("tab_cfg_interval_custom");
+    if (!sel) return;
+    let val = sel.value;
+    if (val === "custom") {
+      if (cust) {
+        cust.style.display = "block";
+        val = cust.value.trim() || "1";
+      }
+    } else {
+      if (cust) cust.style.display = "none";
+    }
+    const minVal = Math.max(1, parseInt(val, 10) || 1);
+    const topbarIntEl = document.getElementById("topbar-site-interval");
+    if (topbarIntEl) topbarIntEl.innerText = "EVERY " + minVal + " MINS";
+    const metricIntEl = document.getElementById("metric-interval");
+    if (metricIntEl) metricIntEl.innerText = minVal + " MINS";
+    const hiddenIntEl = document.getElementById("interval_minutes");
+    if (hiddenIntEl) hiddenIntEl.value = String(minVal);
+  }
+
+  function toggleLinkSection(secId, event) {
+    if (event) {
+      if (typeof event.preventDefault === "function") event.preventDefault();
+      if (typeof event.stopPropagation === "function") event.stopPropagation();
+    }
+    const el = document.getElementById(secId);
+    if (!el) return;
+    el.classList.toggle("collapsed");
+    window.LINK_SECTIONS_STATE = window.LINK_SECTIONS_STATE || {};
+    window.LINK_SECTIONS_STATE[secId] = el.classList.contains("collapsed");
+  }
+
+  function clearActiveTabUsername() {
+    const el = document.getElementById("tab_cfg_username");
+    if (el) el.value = "";
+    showToast("Username cleared. Click 'Save Link Config' to apply.");
+  }
+
+  function clearActiveTabPassword() {
+    window.TAB_CLEAR_PASSWORD = true;
+    const el = document.getElementById("tab_cfg_password");
+    if (el) el.value = "";
+    showToast("Password cleared. Click 'Save Link Config' to apply.");
+  }
+
+  function clearActiveTabToken() {
+    window.TAB_CLEAR_TOKEN = true;
+    const tokEl = document.getElementById("tab_cfg_token");
+    if (tokEl) tokEl.value = "";
+    const expEl = document.getElementById("tab_cfg_token_expiry");
+    if (expEl) expEl.value = "";
+    showToast("Session key cleared. Click 'Save Link Config' to apply.");
+  }
+
+  function autoFillCookieFields() {
+    const pasteEl = document.getElementById("tab_cfg_raw_cookie_paste");
+    if (!pasteEl) return;
+    const raw = pasteEl.value.trim();
+    if (!raw) {
+      showToast("Please paste cookie string from Chrome first", true);
+      return;
+    }
+
+    let sessionKey = "";
+    let expiryNum = "";
+
+    if (raw.includes("grafana_session=")) {
+      const parts = raw.split(";");
+      for (const p of parts) {
+        const trimmed = p.trim();
+        if (trimmed.startsWith("grafana_session=")) {
+          sessionKey = trimmed.substring("grafana_session=".length).trim();
+        } else if (trimmed.startsWith("grafana_session_expiry=")) {
+          expiryNum = trimmed.substring("grafana_session_expiry=".length).trim();
+        }
+      }
+    } else if (raw.includes("=")) {
+      sessionKey = raw.split("=")[1].split(";")[0].trim();
+    } else {
+      const cleaned = raw.replace(/['"\s]/g, "");
+      if (/^[0-9]+$/.test(cleaned) && cleaned.length >= 9 && cleaned.length <= 11) {
+        expiryNum = cleaned;
+      } else {
+        sessionKey = cleaned;
+      }
+    }
+
+    sessionKey = sessionKey.replace(/^['"]+|['"]+$/g, "");
+    expiryNum = expiryNum.replace(/^['"]+|['"]+$/g, "");
+
+    if (sessionKey) {
+      const tokEl = document.getElementById("tab_cfg_token");
+      if (tokEl) {
+        tokEl.value = sessionKey;
+        tokEl.focus();
+      }
+    }
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const futureSec = nowSec + 31536000;
+    const expEl = document.getElementById("tab_cfg_token_expiry");
+    if (expEl) {
+      expEl.value = expiryNum && parseInt(expiryNum, 10) > nowSec ? expiryNum : String(futureSec);
+    }
+
+    pasteEl.value = "";
+    showToast("Session key & expiry parsed successfully! Click 'Save Link Config'.");
+  }
+
+  async function saveActiveTabLink(silent = false) {
+    if (!CURRENT_SITE_ID) return;
+    const urlEl = document.getElementById("tab_cfg_url");
+    const url = urlEl ? urlEl.value.trim() : "";
+    if (!url) {
+      if (!silent) {
+        showToast("Please provide a Grafana target URL", true);
+        if (urlEl) urlEl.focus();
+      }
+      return;
+    }
+
+    let intVal = document.getElementById("tab_cfg_interval").value;
+    if (intVal === "custom") {
+      intVal = document.getElementById("tab_cfg_interval_custom").value.trim() || "1";
+    }
+    const resolvedInt = Math.max(1, parseInt(intVal, 10) || 1);
+    if (document.getElementById("interval_minutes")) {
+      document.getElementById("interval_minutes").value = String(resolvedInt);
+    }
+
+    const shiftsPayload = {
+      morning_hours: document.getElementById("tab_cfg_shift_morning_hours") ? document.getElementById("tab_cfg_shift_morning_hours").value.trim() : "06:00-14:00",
+      morning_users: document.getElementById("tab_cfg_shift_morning_users") ? document.getElementById("tab_cfg_shift_morning_users").value.trim() : "",
+      afternoon_hours: document.getElementById("tab_cfg_shift_afternoon_hours") ? document.getElementById("tab_cfg_shift_afternoon_hours").value.trim() : "14:00-22:00",
+      afternoon_users: document.getElementById("tab_cfg_shift_afternoon_users") ? document.getElementById("tab_cfg_shift_afternoon_users").value.trim() : "",
+      night_hours: document.getElementById("tab_cfg_shift_night_hours") ? document.getElementById("tab_cfg_shift_night_hours").value.trim() : "22:00-06:00",
+      night_users: document.getElementById("tab_cfg_shift_night_users") ? document.getElementById("tab_cfg_shift_night_users").value.trim() : "",
+      tag_channel: document.getElementById("tab_cfg_shift_tag_channel") ? document.getElementById("tab_cfg_shift_tag_channel").checked : true,
+      send_dm: document.getElementById("tab_cfg_shift_send_dm") ? document.getElementById("tab_cfg_shift_send_dm").checked : true
+    };
+
+    // Synchronize to hidden site-level inputs so site save keeps latest roster
+    if (document.getElementById("shift_morning_hours")) document.getElementById("shift_morning_hours").value = shiftsPayload.morning_hours;
+    if (document.getElementById("shift_morning_users")) document.getElementById("shift_morning_users").value = shiftsPayload.morning_users;
+    if (document.getElementById("shift_afternoon_hours")) document.getElementById("shift_afternoon_hours").value = shiftsPayload.afternoon_hours;
+    if (document.getElementById("shift_afternoon_users")) document.getElementById("shift_afternoon_users").value = shiftsPayload.afternoon_users;
+    if (document.getElementById("shift_night_hours")) document.getElementById("shift_night_hours").value = shiftsPayload.night_hours;
+    if (document.getElementById("shift_night_users")) document.getElementById("shift_night_users").value = shiftsPayload.night_users;
+    if (document.getElementById("shift_tag_channel")) document.getElementById("shift_tag_channel").checked = shiftsPayload.tag_channel;
+    if (document.getElementById("shift_send_dm")) document.getElementById("shift_send_dm").checked = shiftsPayload.send_dm;
+
+    let userVal = document.getElementById("tab_cfg_username") ? document.getElementById("tab_cfg_username").value.trim() : "";
+    if (userVal.startsWith("http://") || userVal.startsWith("https://")) {
+      userVal = "";
+    }
+
+    let tokenVal = document.getElementById("tab_cfg_token") ? document.getElementById("tab_cfg_token").value.trim() : "";
+    const expEl = document.getElementById("tab_cfg_token_expiry");
+    let expVal = expEl ? expEl.value.trim() : "";
+
+    if (tokenVal) {
+      if (tokenVal.includes("grafana_session=")) {
+        const m = tokenVal.match(/grafana_session=([^;]+)/);
+        if (m) tokenVal = m[1].trim();
+      } else if (tokenVal.includes("=")) {
+        tokenVal = tokenVal.split("=")[1].split(";")[0].trim();
+      }
+      tokenVal = tokenVal.replace(/^['"]+|['"]+$/g, "");
+
+      const nowSec = Math.floor(Date.now() / 1000);
+      let expNum = parseInt(expVal, 10);
+      if (isNaN(expNum) || expNum <= nowSec) {
+        expNum = nowSec + 31536000;
+      }
+      tokenVal = `grafana_session=${tokenVal}; grafana_session_expiry=${expNum}`;
+    }
+
+    const payload = {
+      title: document.getElementById("tab_cfg_title").value.trim() || "Monitored Link",
+      url: url,
+      username: userVal,
+      password: document.getElementById("tab_cfg_password") ? document.getElementById("tab_cfg_password").value.trim() : "",
+      clear_password: !!window.TAB_CLEAR_PASSWORD,
+      token: tokenVal,
+      clear_token: !!window.TAB_CLEAR_TOKEN,
+      interval_minutes: resolvedInt,
+      time_range: document.getElementById("tab_cfg_timerange").value,
+      enabled: document.getElementById("tab_cfg_enabled") ? (document.getElementById("tab_cfg_enabled").value === "true") : true,
+      threshold_enabled: document.getElementById("tab_cfg_thresh_enabled").checked,
+      threshold_metric_type: document.getElementById("tab_cfg_metric_type").value,
+      threshold_operator: document.getElementById("tab_cfg_operator").value,
+      threshold_value: document.getElementById("tab_cfg_value").value.trim(),
+      threshold_keywords: document.getElementById("tab_cfg_keywords").value.trim(),
+      threshold_colors: document.getElementById("tab_cfg_colors").value.trim(),
+      threshold_breach_users: document.getElementById("tab_cfg_breach_users") ? document.getElementById("tab_cfg_breach_users").value.trim() : "",
+      slack_channel_id: document.getElementById("tab_cfg_channel").value.trim(),
+      slack_thread_ts: document.getElementById("tab_cfg_thread").value.trim(),
+      slack_message: document.getElementById("tab_cfg_message").value.trim(),
+      send_channel: document.getElementById("tab_cfg_send_channel").checked,
+      send_dm: document.getElementById("tab_cfg_send_dm").checked,
+      only_on_breach: document.getElementById("tab_cfg_only_breach").checked,
+      shifts: shiftsPayload
+    };
+
+    try {
+      const isNew = ACTIVE_TAB_LINK_ID === "new";
+      const endpoint = isNew ? `/api/sites/${CURRENT_SITE_ID}/links` : `/api/sites/${CURRENT_SITE_ID}/links/${ACTIVE_TAB_LINK_ID}`;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        window.TAB_CLEAR_PASSWORD = false;
+        window.TAB_CLEAR_TOKEN = false;
+        if (!silent) showToast("Link configuration saved successfully!");
+        if (isNew && data.link && data.link.id) {
+          ACTIVE_TAB_LINK_ID = data.link.id;
+        }
+        if (!silent || isNew) {
+          await loadAndRenderSiteLinks();
+        }
+        fetchLogs();
+        return true;
+      } else {
+        if (!silent) showToast("Error: " + data.error, true);
+        return false;
+      }
+    } catch(e) {
+      if (!silent) showToast("Network error saving link", true);
+      return false;
+    }
+  }
+
+  async function runActiveTabLink() {
+    if (!CURRENT_SITE_ID) return;
+    const urlEl = document.getElementById("tab_cfg_url");
+    if (urlEl && urlEl.value.trim()) {
+      await saveActiveTabLink(true);
+    }
+    if (ACTIVE_TAB_LINK_ID === "new") {
+      showToast("Please save this link tab first before running", true);
+      return;
+    }
+    const lk = CURRENT_SITE_LINKS.find(l => l.id === ACTIVE_TAB_LINK_ID);
+    const title = lk ? lk.title : "Link";
+    const btn = document.getElementById("btn-tab-run") || document.getElementById("btn-run");
+    let orig = "";
+    if (btn) {
+      btn.disabled = true;
+      orig = btn.innerHTML;
+      btn.innerHTML = "Running...";
+    }
+    try {
+      showToast(`Triggered run for '${title}'...`);
+      const res = await fetch(`/api/sites/${CURRENT_SITE_ID}/links/${ACTIVE_TAB_LINK_ID}/trigger`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setTimeout(fetchLogs, 1500);
+      } else {
+        showToast("Error: " + data.error, true);
+      }
+    } catch(e) {
+      showToast("Network error running link", true);
+    } finally {
+      if (btn) {
+        setTimeout(() => { btn.disabled = false; btn.innerHTML = orig; }, 2500);
+      }
+    }
+  }
+
+  async function toggleActiveTabLink(linkId) {
+    if (!CURRENT_SITE_ID || !linkId || linkId === "new") return;
+    const btn = document.getElementById("btn-tab-toggle-monitoring");
+    let orig = "";
+    if (btn) {
+      btn.disabled = true;
+      orig = btn.innerHTML;
+      btn.innerHTML = "<span>Updating...</span>";
+    }
+    try {
+      const res = await fetch(`/api/sites/${CURRENT_SITE_ID}/links/${linkId}/toggle`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.enabled ? "Link monitoring enabled & initial capture triggered" : "Link monitoring paused");
+        const lk = CURRENT_SITE_LINKS.find(l => l.id === linkId);
+        if (lk) {
+          lk.enabled = data.enabled;
+        }
+        const hiddenEnabled = document.getElementById("tab_cfg_enabled");
+        if (hiddenEnabled) hiddenEnabled.value = data.enabled ? "true" : "false";
+
+        updateActiveTabStatusUI();
+        await loadAndRenderSiteLinks();
+        await loadSites(true);
+      } else {
+        showToast("Error: " + (data.error || "Failed to toggle link"), true);
+      }
+    } catch(e) {
+      showToast("Failed to toggle link active state", true);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+      }
+    }
+  }
+
+  // Compatibility aliases
+  function renderSiteLinks() { renderChromeTabs(); }
+  function openAddLinkModal() { addNewLinkTab(); }
+  function openEditLinkModal(linkId) { switchLinkTab(linkId); }
+  function closeLinkModal() {}
+  function saveLinkModal() { saveActiveTabLink(); }
+  function toggleLinkActive(linkId) { toggleActiveTabLink(linkId); }
+  function triggerSingleLink(linkId, title) {
+    switchLinkTab(linkId);
+    setTimeout(runActiveTabLink, 50);
+  }
+  function deleteLinkPrompt(linkId, title) { closeLinkTab(linkId); }
+
+  function updateActiveSiteStatusBadge() {
+    const site = ALL_SITES.find(s => s.id === CURRENT_SITE_ID);
+    if (!site) return;
+
+    const state = site.state || {};
+    const topStatus = document.getElementById("topbar-site-status");
+    const lastStat = document.getElementById("metric-last-status");
+    const lastTime = document.getElementById("metric-last-time");
+    const pill = document.getElementById("status-pill");
+    const pauseBtnText = document.getElementById("pause-btn-text");
+    const pauseIcon = document.getElementById("pause-icon");
+    const pauseBtn = document.getElementById("btn-pause-toggle");
+
+    const banner = document.getElementById("site-monitoring-banner");
+    const bannerDot = document.getElementById("site-status-indicator-dot");
+    const bannerHeadline = document.getElementById("site-status-headline");
+    const bannerSubline = document.getElementById("site-status-subline");
+
+    if (state.last_status) lastStat.innerText = state.last_status.toUpperCase();
+    if (state.last_run_time) lastTime.innerText = state.last_run_time;
+
+    const intervalMin = site.interval_minutes || 30;
+    const isPaused = (site.paused !== false) && (state.is_paused !== false);
+
+    const topbarPauseBtn = document.getElementById("btn-topbar-pause-toggle");
+    const topbarPauseText = document.getElementById("topbar-pause-text");
+    const topbarPauseIcon = document.getElementById("topbar-pause-icon");
+
+    if (isPaused) {
+      if (pauseBtnText) pauseBtnText.innerText = "Start Monitoring";
+      if (pauseIcon) pauseIcon.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+      if (pauseBtn) pauseBtn.className = "btn btn-orange";
+
+      if (topbarPauseText) topbarPauseText.innerText = "Start Monitoring";
+      if (topbarPauseIcon) topbarPauseIcon.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+      if (topbarPauseBtn) {
+        topbarPauseBtn.style.background = "#16a34a";
+        topbarPauseBtn.style.borderColor = "#15803d";
+        topbarPauseBtn.style.color = "#fff";
+      }
+
+      if (banner) banner.className = "monitoring-control-card paused-state";
+      if (bannerDot) bannerDot.className = "status-indicator-circle paused";
+      if (bannerHeadline) bannerHeadline.innerText = "MONITORING STOPPED (PAUSED)";
+      if (bannerSubline) bannerSubline.innerText = `This site is paused. Automated background checks every ${intervalMin}m are suspended.`;
+      if (topStatus) {
+        topStatus.innerText = "PAUSED (STANDBY)";
+        topStatus.className = "metric-pill pill-amber";
+      }
+      if (pill) {
+        pill.innerText = "PAUSED (CLICK TO START)";
+        pill.className = "metric-pill pill-amber";
+      }
+    } else {
+      if (pauseBtnText) pauseBtnText.innerText = "Pause Monitoring";
+      if (pauseIcon) pauseIcon.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+      if (pauseBtn) pauseBtn.className = "btn btn-white";
+
+      if (topbarPauseText) topbarPauseText.innerText = "Pause Monitoring";
+      if (topbarPauseIcon) topbarPauseIcon.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+      if (topbarPauseBtn) {
+        topbarPauseBtn.style.background = "#fff";
+        topbarPauseBtn.style.borderColor = "#d97706";
+        topbarPauseBtn.style.color = "#b45309";
+      }
+
+      if (banner) banner.className = "monitoring-control-card active-state";
+      if (bannerDot) bannerDot.className = state.is_running ? "status-indicator-circle capturing" : "status-indicator-circle active";
+      if (bannerHeadline) bannerHeadline.innerText = state.is_running ? "CAPTURING LIVE SNAPSHOT NOW..." : "MONITORING ACTIVELY RUNNING";
+      if (bannerSubline) bannerSubline.innerText = `Automated captures execute recurringly every ${intervalMin} minutes for this site.`;
+      if (state.is_running) {
+        if (topStatus) {
+          topStatus.innerText = "CAPTURING";
+          topStatus.className = "metric-pill pill-orange";
+        }
+        if (pill) {
+          pill.innerText = "BUSY (CAPTURING)";
+          pill.className = "metric-pill pill-orange";
+        }
+      } else {
+        if (topStatus) {
+          topStatus.innerText = "MONITORING ACTIVE";
+          topStatus.className = "metric-pill pill-green";
+        }
+        if (pill) {
+          pill.innerText = "ACTIVE (MONITORING)";
+          pill.className = "metric-pill pill-green";
+        }
+      }
+    }
+    updateActiveTabStatusUI();
+  }
+
+  function updateActiveTabStatusUI() {
+    if (!ACTIVE_TAB_LINK_ID || ACTIVE_TAB_LINK_ID === "new") return;
+    const lk = CURRENT_SITE_LINKS.find(l => l.id === ACTIVE_TAB_LINK_ID);
+    if (!lk) return;
+
+    const isEnabled = lk.enabled !== false;
+    const tabBanner = document.getElementById("link-monitoring-banner");
+    const tabDot = document.getElementById("tab-status-indicator-dot");
+    const tabHeadline = document.getElementById("tab-status-headline");
+    const tabSubline = document.getElementById("tab-status-subline");
+    const tabToggleBtn = document.getElementById("btn-tab-toggle-monitoring");
+    const tabStatusTag = document.getElementById("tab-header-status-tag");
+
+    const intVal = Math.max(1, parseInt(lk.interval_minutes, 10) || 1);
+
+    if (tabBanner) {
+      tabBanner.className = `monitoring-control-card ${isEnabled ? 'running-state' : 'paused-state'}`;
+      tabBanner.style.background = isEnabled ? '#f0fdf4' : '#fffbeb';
+      tabBanner.style.borderColor = isEnabled ? '#86efac' : '#fcd34d';
+    }
+    if (tabDot) {
+      tabDot.className = `status-indicator-circle ${isEnabled ? 'running' : 'paused'}`;
+      tabDot.style.background = isEnabled ? '#22c55e' : '#f59e0b';
+      tabDot.style.boxShadow = `0 0 8px ${isEnabled ? '#22c55e' : '#f59e0b'}`;
+    }
+    if (tabHeadline) {
+      tabHeadline.innerText = isEnabled ? `TAB MONITORING ACTIVE (EVERY ${intVal}M)` : 'TAB MONITORING PAUSED';
+      tabHeadline.style.color = isEnabled ? '#15803d' : '#b45309';
+    }
+    if (tabSubline) {
+      tabSubline.innerText = isEnabled 
+        ? `This link tab is actively monitored. Automated captures occur every ${intVal} minutes.`
+        : 'This link tab is paused and excluded from automated cycles. Click Start Tab Monitoring to activate.';
+    }
+    if (tabToggleBtn) {
+      tabToggleBtn.style.background = isEnabled ? '#fff' : '#16a34a';
+      tabToggleBtn.style.borderColor = isEnabled ? '#d97706' : '#15803d';
+      tabToggleBtn.style.color = isEnabled ? '#b45309' : '#fff';
+      tabToggleBtn.innerHTML = isEnabled
+        ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="margin-right:4px;"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg><span>Pause Tab Monitoring</span>'
+        : '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="margin-right:4px;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Start Tab Monitoring</span>';
+      tabToggleBtn.title = isEnabled ? 'Pause automated monitoring for this tab' : 'Start automated monitoring for this tab';
+    }
+    if (tabStatusTag) {
+      tabStatusTag.className = `cell-tag ${isEnabled ? 'tag-green' : 'tag-amber'}`;
+      tabStatusTag.innerText = isEnabled ? '● ACTIVE (MONITORED)' : '○ PAUSED';
+    }
+    const tabSectionStatusTag = document.getElementById("tab-section-status-tag");
+    if (tabSectionStatusTag) {
+      tabSectionStatusTag.className = `cell-tag ${isEnabled ? 'tag-green' : 'tag-amber'}`;
+      tabSectionStatusTag.innerText = isEnabled ? '● ACTIVE (MONITORED)' : '○ PAUSED';
+    }
+    const tabEnabledInput = document.getElementById("tab_cfg_enabled");
+    if (tabEnabledInput) {
+      tabEnabledInput.value = isEnabled ? 'true' : 'false';
+    }
+
+    // Synchronize tab strip indicator dot
+    const allTabs = document.querySelectorAll("#chrome-tabs-bar .chrome-tab");
+    CURRENT_SITE_LINKS.forEach((l, i) => {
+      if (allTabs[i]) {
+        const dot = allTabs[i].querySelector(".chrome-tab-indicator");
+        if (dot && !dot.classList.contains("new")) {
+          dot.className = `chrome-tab-indicator ${l.enabled !== false ? 'active' : 'paused'}`;
+        }
+      }
+    });
+  }
+
+  function updateDeliveryHint() {
+    const hintEl = document.getElementById("tab-delivery-mode-hint");
+    if (!hintEl) return;
+    const sendChan = document.getElementById("tab_cfg_send_channel") ? document.getElementById("tab_cfg_send_channel").checked : true;
+    const sendDm = document.getElementById("tab_cfg_send_dm") ? document.getElementById("tab_cfg_send_dm").checked : true;
+    const targetVal = (document.getElementById("tab_cfg_channel") ? document.getElementById("tab_cfg_channel").value.trim() : "");
+    const tokens = targetVal.split(/[,;\s]+/).map(t => t.replace(/[<@>#\s]/g, '')).filter(Boolean);
+    const hasUsers = tokens.some(t => t.startsWith('U') || t.startsWith('W'));
+    const hasChans = tokens.some(t => t.startsWith('C') || (!t.startsWith('U') && !t.startsWith('W')));
+
+    if (hasUsers && !hasChans) {
+      hintEl.style.background = "#eff6ff";
+      hintEl.style.borderColor = "#bfdbfe";
+      hintEl.style.color = "#1e40af";
+      const count = tokens.length;
+      hintEl.innerHTML = "🎯 <b>Direct 1-on-1 DM Mode:</b> Destination contains " + (count > 1 ? count + " Slack Member IDs" : "Slack Member ID") + " (" + escapeHtml(targetVal) + "). Each member receives <b>1 private snapshot</b> directly in their DM (requires <code>im:write</code> scope on bot).";
+    } else if (hasUsers && hasChans) {
+      hintEl.style.background = "#eff6ff";
+      hintEl.style.borderColor = "#bfdbfe";
+      hintEl.style.color = "#1e40af";
+      hintEl.innerHTML = "📢🎯 <b>Multi-Destination:</b> Delivering snapshot to channel(s) AND individual 1-on-1 DM(s) (" + escapeHtml(targetVal) + ").";
+    } else if (sendChan && sendDm) {
+      hintEl.style.background = "#fff7ed";
+      hintEl.style.borderColor = "#fed7aa";
+      hintEl.style.color = "#9a3412";
+      hintEl.innerHTML = "⚠️ <b>Dual Destination Active:</b> Both 'Channel' AND 'On-Call DM' are checked. A snapshot will be posted to the Channel <b>AND</b> sent to On-Call Member DM (2 screenshots total). Uncheck one if you only want 1 screenshot.";
+    } else if (sendChan) {
+      hintEl.style.background = "#f0fdf4";
+      hintEl.style.borderColor = "#bbf7d0";
+      hintEl.style.color = "#166534";
+      hintEl.innerHTML = "📢 <b>Channel Only:</b> Exactly <b>1 snapshot</b> will be posted to the Slack Channel.";
+    } else if (sendDm) {
+      hintEl.style.background = "#f0fdf4";
+      hintEl.style.borderColor = "#bbf7d0";
+      hintEl.style.color = "#166534";
+      hintEl.innerHTML = "👤 <b>On-Call DM Only:</b> Exactly <b>1 snapshot</b> will be sent to the on-duty member DM.";
+    } else {
+      hintEl.style.background = "#fef2f2";
+      hintEl.style.borderColor = "#fecaca";
+      hintEl.style.color = "#991b1b";
+      hintEl.innerHTML = "🔇 <b>Silent Monitoring:</b> Both Channel and DM are unchecked. Captured data will be logged in Activity Console only.";
+    }
+  }
+
+  async function toggleCurrentSitePause() {
+    if (!CURRENT_SITE_ID) return;
+    try {
+      const res = await fetch(`/api/sites/${CURRENT_SITE_ID}/toggle-pause`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.is_paused ? "Monitoring PAUSED for this site (other sites unaffected)" : "Monitoring STARTED for this site (other sites unaffected)");
+        await loadSites(true);
+      }
+    } catch(e) {
+      showToast("Failed to toggle site monitoring state", true);
+    }
+  }
+
+  async function saveCurrentSite(silent = false) {
+    if (!CURRENT_SITE_ID) return false;
+    const btn = document.getElementById("btn-save");
+    let orig = "";
+    if (!silent && btn) {
+      btn.disabled = true;
+      orig = btn.innerHTML;
+      btn.innerHTML = "Saving...";
+    }
+
+    try {
+      const currentSiteObj = ALL_SITES.find(s => s.id === CURRENT_SITE_ID) || {};
+      const payload = {
+        name: document.getElementById("site_name") ? document.getElementById("site_name").value.trim() : "",
+        interval_minutes: document.getElementById("interval_minutes") ? document.getElementById("interval_minutes").value : "30",
+        grafana_url: document.getElementById("grafana_url") ? document.getElementById("grafana_url").value.trim() : "",
+        grafana_username: document.getElementById("grafana_username") ? document.getElementById("grafana_username").value.trim() : "",
+        grafana_password: document.getElementById("grafana_password") ? document.getElementById("grafana_password").value.trim() : "",
+        grafana_token: document.getElementById("grafana_token") ? document.getElementById("grafana_token").value.trim() : (currentSiteObj.grafana_token || ""),
+        slack_channel_id: document.getElementById("slack_channel_id") ? document.getElementById("slack_channel_id").value.trim() : "",
+        slack_thread_ts: document.getElementById("slack_thread_ts") ? document.getElementById("slack_thread_ts").value.trim() : "",
+        slack_message: document.getElementById("slack_message") ? document.getElementById("slack_message").value.trim() : "",
+        threshold_enabled: document.getElementById("threshold_enabled") ? document.getElementById("threshold_enabled").checked : false,
+        threshold_metric_type: document.getElementById("threshold_metric_type") ? document.getElementById("threshold_metric_type").value : "row_count",
+        threshold_operator: document.getElementById("threshold_operator") ? document.getElementById("threshold_operator").value : ">",
+        threshold_value: document.getElementById("threshold_value") ? document.getElementById("threshold_value").value.trim() : "0",
+        threshold_keywords: document.getElementById("threshold_keywords") ? document.getElementById("threshold_keywords").value.trim() : "",
+        threshold_colors: document.getElementById("threshold_colors") ? document.getElementById("threshold_colors").value.trim() : "",
+        threshold_breach_users: document.getElementById("threshold_breach_users") ? document.getElementById("threshold_breach_users").value.trim() : "",
+        threshold_only_alert_on_breach: document.getElementById("threshold_only_alert_on_breach") ? document.getElementById("threshold_only_alert_on_breach").checked : false,
+        shift_morning_hours: document.getElementById("shift_morning_hours") ? document.getElementById("shift_morning_hours").value.trim() : "",
+        shift_morning_users: document.getElementById("shift_morning_users") ? document.getElementById("shift_morning_users").value.trim() : "",
+        shift_afternoon_hours: document.getElementById("shift_afternoon_hours") ? document.getElementById("shift_afternoon_hours").value.trim() : "",
+        shift_afternoon_users: document.getElementById("shift_afternoon_users") ? document.getElementById("shift_afternoon_users").value.trim() : "",
+        shift_night_hours: document.getElementById("shift_night_hours") ? document.getElementById("shift_night_hours").value.trim() : "",
+        shift_night_users: document.getElementById("shift_night_users") ? document.getElementById("shift_night_users").value.trim() : "",
+        shift_tag_channel: document.getElementById("shift_tag_channel") ? document.getElementById("shift_tag_channel").checked : false,
+        shift_send_dm: document.getElementById("shift_send_dm") ? document.getElementById("shift_send_dm").checked : false
+      };
+
+      const res = await fetch(`/api/sites/${CURRENT_SITE_ID}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        // If an active link tab with a URL is currently open, auto-save it too
+        const activeUrl = document.getElementById("tab_cfg_url") ? document.getElementById("tab_cfg_url").value.trim() : "";
+        if (activeUrl) {
+          await saveActiveTabLink(true);
+        }
+        if (!silent) showToast("Site settings saved successfully!");
+        await loadSites(true);
+        fetchLogs();
+        return true;
+      } else {
+        showToast("Save failed: " + (data.error || "Unknown error"), true);
+        return false;
+      }
+    } catch(e) {
+      console.error("Save site error:", e);
+      if (!silent) showToast("Network error while saving site", true);
+      return false;
+    } finally {
+      if (!silent && btn) {
+        btn.disabled = false;
+        btn.innerHTML = orig || "Save Site Settings";
+      }
+    }
+  }
+
+  function json_stringify_safe(obj) {
+    return JSON.stringify(obj);
+  }
+
+  async function triggerCurrentSiteRun() {
+    if (!CURRENT_SITE_ID) return;
+    // Auto-save form inputs first so any edited channel/credentials are applied
+    await saveCurrentSite(true);
+
+    const btn = document.getElementById("btn-topbar-run");
+    let orig = "";
+    if (btn) {
+      btn.disabled = true;
+      orig = btn.innerHTML;
+      btn.innerHTML = "Running...";
+    }
+    try {
+      const res = await fetch(`/api/sites/${CURRENT_SITE_ID}/trigger`, { method: "POST" });
+      const data = await res.json();
+      if (data.success) showToast("Capture cycle triggered for active site!");
+      else showToast("Run failed: " + data.error, true);
+    } catch(e) {
+      showToast("Unable to trigger execution", true);
+    } finally {
+      if (btn) setTimeout(() => { btn.disabled = false; btn.innerHTML = orig; }, 2500);
+      loadSites(true);
+    }
+  }
+
+  async function testActiveTabLinkSlack() {
+    if (!CURRENT_SITE_ID) return;
+    const urlEl = document.getElementById("tab_cfg_url");
+    if (urlEl && urlEl.value.trim()) {
+      await saveActiveTabLink(true);
+    }
+    const targetLinkId = (ACTIVE_TAB_LINK_ID && ACTIVE_TAB_LINK_ID !== "new") ? ACTIVE_TAB_LINK_ID : null;
+
+    const btn = document.getElementById("btn-tab-slack") || document.getElementById("btn-slack");
+    let orig = "";
+    if (btn) {
+      btn.disabled = true;
+      orig = btn.innerHTML;
+      btn.innerHTML = "Pinging...";
+    }
+    try {
+      const endpoint = targetLinkId
+        ? `/api/sites/${CURRENT_SITE_ID}/links/${targetLinkId}/test-slack`
+        : `/api/sites/${CURRENT_SITE_ID}/test-slack`;
+      const res = await fetch(endpoint, { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message);
+      } else {
+        showToast("Slack Error: " + data.error, true);
+      }
+    } catch(e) {
+      showToast("Slack ping failed", true);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+      }
+      fetchLogs();
+    }
+  }
+
+  async function testActiveTabLinkDM() {
+    if (!CURRENT_SITE_ID) return;
+    const urlEl = document.getElementById("tab_cfg_url");
+    if (urlEl && urlEl.value.trim()) {
+      await saveActiveTabLink(true);
+    }
+    const targetLinkId = (ACTIVE_TAB_LINK_ID && ACTIVE_TAB_LINK_ID !== "new") ? ACTIVE_TAB_LINK_ID : null;
+
+    const rawBreach = (document.getElementById("tab_cfg_breach_users") ? document.getElementById("tab_cfg_breach_users").value : "") || (document.getElementById("threshold_breach_users") ? document.getElementById("threshold_breach_users").value : "");
+    const rawShift = (document.getElementById("tab_cfg_shift_morning_users") ? document.getElementById("tab_cfg_shift_morning_users").value : "") || (document.getElementById("shift_morning_users") ? document.getElementById("shift_morning_users").value : "");
+    const firstSuggested = (rawBreach || rawShift).replace(/[,]/g, " ").trim().split(/\s+/)[0] || "";
+
+    const memberId = prompt(
+      "Enter your Slack Member ID to receive an in-person test DM for this link:\n(Click your Slack profile avatar -> Click '...' -> Click 'Copy member ID')",
+      firstSuggested
+    );
+    if (!memberId || !memberId.trim()) return;
+
+    const btn = document.getElementById("btn-tab-dm") || document.getElementById("btn-dm");
+    let orig = "";
+    if (btn) {
+      btn.disabled = true;
+      orig = btn.innerHTML;
+      btn.innerHTML = "Sending DM...";
+    }
+    try {
+      const endpoint = targetLinkId
+        ? `/api/sites/${CURRENT_SITE_ID}/links/${targetLinkId}/test-dm`
+        : `/api/sites/${CURRENT_SITE_ID}/test-dm`;
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: memberId.trim() })
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message);
+      } else {
+        showToast("DM Error: " + data.error, true);
+      }
+    } catch(e) {
+      showToast("Network error testing DM", true);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+      }
+      fetchLogs();
+    }
+  }
+
+  async function previewActiveTabLinkSnapshot() {
+    if (!CURRENT_SITE_ID) return;
+    const urlEl = document.getElementById("tab_cfg_url");
+    if (urlEl && urlEl.value.trim()) {
+      await saveActiveTabLink(true);
+    }
+    const targetLinkId = (ACTIVE_TAB_LINK_ID && ACTIVE_TAB_LINK_ID !== "new") ? ACTIVE_TAB_LINK_ID : null;
+    const lk = CURRENT_SITE_LINKS.find(l => l.id === targetLinkId);
+    const linkTitle = lk ? lk.title : "Active Link";
+
+    const btn = document.getElementById("btn-tab-preview") || document.getElementById("btn-preview");
+    let orig = "";
+    if (btn) {
+      btn.disabled = true;
+      orig = btn.innerHTML;
+      btn.innerHTML = "Capturing...";
+    }
+    const m = document.getElementById("preview-modal");
+    const mb = document.getElementById("modal-body");
+    if (m && mb) {
+      m.style.display = "flex";
+      mb.innerHTML = `<div style="padding: 30px; text-align: center; color: #71717a; font-weight: 600;">Running headless browser capture for '${escapeHtml(linkTitle)}'... (takes ~6-10s)</div>`;
+    }
+
+    try {
+      const endpoint = targetLinkId
+        ? `/api/sites/${CURRENT_SITE_ID}/links/${targetLinkId}/preview-capture`
+        : `/api/sites/${CURRENT_SITE_ID}/preview-capture`;
+      const res = await fetch(endpoint, { method: "POST" });
+      const data = await res.json();
+      if (data.success && data.image_url) {
+        if (mb) {
+          mb.innerHTML = `<div style="margin-bottom: 8px; font-size: 12px; font-weight: 700; color: #52525b;">Snapshot for: <span style="color: var(--primary-orange);">${escapeHtml(linkTitle)}</span></div><img src="${data.image_url}?t=${Date.now()}" style="max-width: 100%; border: 2px solid var(--border-dark); border-radius: 4px; box-shadow: var(--shadow-sm);" alt="Grafana Preview">`;
+        }
+        showToast("Snapshot captured successfully!");
+      } else {
+        if (mb) {
+          mb.innerHTML = `<div style="padding: 20px; color: var(--accent-red); font-weight: 600;">Failed: ${escapeHtml(data.error || "Unknown error")}</div>`;
+        }
+        showToast("Snapshot failed: " + (data.error || "Unknown error"), true);
+      }
+    } catch(e) {
+      if (mb) {
+        mb.innerHTML = `<div style="padding: 20px; color: var(--accent-red);">Network error while capturing snapshot.</div>`;
+      }
+      showToast("Network error while capturing snapshot", true);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+      }
+      fetchLogs();
+    }
+  }
+
+  async function previewActiveTabLinkData() {
+    if (!CURRENT_SITE_ID) return;
+    const urlEl = document.getElementById("tab_cfg_url");
+    if (urlEl && urlEl.value.trim()) {
+      await saveActiveTabLink(true);
+    }
+    const targetLinkId = (ACTIVE_TAB_LINK_ID && ACTIVE_TAB_LINK_ID !== "new") ? ACTIVE_TAB_LINK_ID : null;
+    const lk = CURRENT_SITE_LINKS.find(l => l.id === targetLinkId);
+    const linkTitle = lk ? lk.title : "Active Link";
+
+    const btn = document.getElementById("btn-tab-extract") || document.getElementById("btn-extract-preview");
+    let orig = "";
+    if (btn) {
+      btn.disabled = true;
+      orig = btn.innerHTML;
+      btn.innerHTML = "Extracting...";
+    }
+    const m = document.getElementById("extract-modal");
+    const mb = document.getElementById("extract-modal-body");
+    if (m && mb) {
+      m.style.display = "flex";
+      mb.innerHTML = `<div style="padding: 30px; text-align: center; color: #71717a; font-weight: 600;">Extracting dashboard tables, gauges & running OCR for '${escapeHtml(linkTitle)}'... (takes ~6-10s)</div>`;
+    }
+
+    try {
+      const endpoint = targetLinkId
+        ? `/api/sites/${CURRENT_SITE_ID}/links/${targetLinkId}/preview-extracted-text`
+        : `/api/sites/${CURRENT_SITE_ID}/preview-extracted-text`;
+      const credentialsPayload = {
+        username: document.getElementById("tab_cfg_username") ? document.getElementById("tab_cfg_username").value.trim() : "",
+        password: document.getElementById("tab_cfg_password") ? document.getElementById("tab_cfg_password").value.trim() : ""
+      };
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credentialsPayload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        const ev = data.evaluation || {};
+        const ext = data.extraction || {};
+        const shift = data.active_shift || {};
+
+        let statusBadge = ev.breached ? '<span class="cell-tag tag-red">THRESHOLD BREACHED</span>' : '<span class="cell-tag tag-green">NORMAL / ALL CLEAR</span>';
+
+        let html = `
+          <div style="margin-bottom: 14px; padding: 12px; border: 2px solid var(--border-dark); border-radius: 4px; background: #faf8f5;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <strong style="font-family: 'Barlow Condensed'; font-size: 18px;">THRESHOLD EVALUATION: ${statusBadge}</strong>
+              <span style="font-size: 11px; font-weight: 700;">Link: ${escapeHtml(data.link_title || linkTitle)} | Shift: ${escapeHtml(shift.name || 'General')} (${escapeHtml(shift.hours || 'All-Day')})</span>
+            </div>
+            <div style="font-size: 13px; color: #27272a;">${escapeHtml(ev.summary || 'No trigger condition met.')}</div>
+          </div>
+        `;
+
+        if (ext.stats && ext.stats.length) {
+          html += `<div style="margin-bottom: 12px;"><strong>Detected Metrics / Gauge Values:</strong><div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;">`;
+          ext.stats.forEach(st => {
+            html += `<span style="background: #f4f4f5; border: 1px solid #d4d4d8; padding: 3px 8px; border-radius: 3px; font-size: 11px; font-family: monospace;">${escapeHtml(st)}</span>`;
+          });
+          html += `</div></div>`;
+        }
+
+        if (ext.tables && ext.tables.length) {
+          html += `<strong>Dashboard Tables:</strong>`;
+          ext.tables.forEach((tbl, idx) => {
+            html += `<div style="margin-top: 8px; margin-bottom: 12px;"><div style="font-size: 12px; font-weight: 700; color: #52525b;">Table ${idx+1}: ${escapeHtml(tbl.title || 'Untitled')} (${tbl.row_count || 0} rows)</div>`;
+            if (tbl.rows && tbl.rows.length) {
+              html += `<table class="data-table-preview">`;
+              if (tbl.headers && tbl.headers.length) {
+                html += `<tr>${tbl.headers.map(h => `<th>${escapeHtml(h)}</th>`).join('')}</tr>`;
+              }
+              tbl.rows.slice(0, 5).forEach(r => {
+                html += `<tr>${r.map(c => `<td>${escapeHtml(c.text)}</td>`).join('')}</tr>`;
+              });
+              html += `</table>`;
+            }
+            html += `</div>`;
+          });
+        }
+
+        if (mb) mb.innerHTML = html;
+        showToast("Dashboard extracted successfully!");
+      } else {
+        if (mb) mb.innerHTML = `<div style="color: var(--accent-red);">Extraction failed: ${escapeHtml(data.error)}</div>`;
+        showToast("Extraction failed: " + (data.error || "Unknown error"), true);
+      }
+    } catch(e) {
+      if (mb) mb.innerHTML = `<div style="color: var(--accent-red);">Network error while extracting dashboard.</div>`;
+      showToast("Network error while extracting dashboard", true);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+      }
+      fetchLogs();
+    }
+  }
+
+  // Compatibility aliases
+  const previewCurrentSiteSnapshot = previewActiveTabLinkSnapshot;
+  const previewCurrentSiteData = previewActiveTabLinkData;
+  const testCurrentSiteSlack = testActiveTabLinkSlack;
+  const testCurrentSiteDM = testActiveTabLinkDM;
+
+  function closeModal() { document.getElementById("preview-modal").style.display = "none"; }
+  function closeExtractModal() { document.getElementById("extract-modal").style.display = "none"; }
+
+  // Add Site Modal Handlers
+  function openAddSiteModal() {
+    document.getElementById("new-site-name").value = "";
+    document.getElementById("new-site-url").value = "";
+    document.getElementById("add-site-modal").style.display = "flex";
+    setTimeout(() => document.getElementById("new-site-name").focus(), 50);
+  }
+  function closeAddSiteModal() { document.getElementById("add-site-modal").style.display = "none"; }
+
+  async function submitCreateSite() {
+    const name = document.getElementById("new-site-name").value.trim();
+    if (!name) {
+      showToast("Please enter a site name", true);
+      return;
+    }
+    const url = document.getElementById("new-site-url").value.trim();
+    const clone = document.getElementById("new-site-clone-creds").checked;
+    // Only clone from active site if sites actually exist
+    const cloneId = (clone && CURRENT_SITE_ID && ALL_SITES.length > 0) ? CURRENT_SITE_ID : null;
+
+    const btn = document.querySelector('#add-site-modal .btn-orange');
+    const origText = btn.innerText;
+    btn.disabled = true;
+    btn.innerText = "Creating...";
+
+    try {
+      const res = await fetch("/api/sites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name,
+          grafana_url: url,
+          clone_from_id: cloneId
+        })
+      });
+      const data = await res.json();
+      if (data.success && data.site) {
+        closeAddSiteModal();
+        showToast(`Site '${data.site.name}' created successfully!`);
+        CURRENT_SITE_ID = data.site.id;
+        await loadSites(false);   // reload and switch to new site
+        populateActiveSite();     // ensure form fills with new site data
+      } else {
+        showToast("Error: " + (data.error || "Failed to create site"), true);
+      }
+    } catch(e) {
+      showToast("Network error creating site", true);
+    } finally {
+      btn.disabled = false;
+      btn.innerText = origText;
+    }
+  }
+
+  // Delete Site Modal Handlers
+  function openDeleteModal() {
+    if (ALL_SITES.length <= 1) {
+      showToast("Cannot delete the only remaining site.", true);
+      return;
+    }
+    const site = ALL_SITES.find(s => s.id === CURRENT_SITE_ID);
+    if (site) {
+      document.getElementById("delete-site-name").innerText = `'${site.name}'`;
+    }
+    document.getElementById("delete-site-modal").style.display = "flex";
+  }
+  function closeDeleteModal() { document.getElementById("delete-site-modal").style.display = "none"; }
+
+  async function submitDeleteSite() {
+    if (!CURRENT_SITE_ID) return;
+    try {
+      const res = await fetch(`/api/sites/${CURRENT_SITE_ID}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        closeDeleteModal();
+        showToast("Site deleted successfully!");
+        CURRENT_SITE_ID = null;
+        await loadSites(false);
+      } else {
+        showToast("Delete failed: " + data.error, true);
+      }
+    } catch(e) {
+      showToast("Error deleting site", true);
+    }
+  }
+
+  async function checkSessionStatus() {
+    const badge = document.getElementById("global-sso-status-badge");
+    const details = document.getElementById("global-sso-details");
+    if (!badge) return;
+    try {
+      const res = await fetch("/api/auth/session-status");
+      const d = await res.json();
+      if (d.exists) {
+        badge.innerText = d.has_google_sso ? "● ACTIVE (GOOGLE SSO)" : "● ACTIVE";
+        badge.style.color = "#15803d";
+        badge.style.borderColor = "#86efac";
+        badge.style.background = "#f0fdf4";
+        const domList = (d.domains || []).slice(0, 4).join(", ");
+        if (details) details.innerText = `Loaded ${d.cookie_count} cookies (${domList || "all domains"}). Last updated: ${d.last_modified || "unknown"}`;
+      } else {
+        badge.innerText = "○ NOT FOUND";
+        badge.style.color = "#b45309";
+        badge.style.borderColor = "#fcd34d";
+        badge.style.background = "#fffbeb";
+        if (details) details.innerText = "No session file found. Upload grafana_auth_state.json to enable universal SSO.";
+      }
+    } catch(e) {
+      if (badge) badge.innerText = "ERROR";
+    }
+  }
+
+  async function uploadMasterSessionFile() {
+    const fileInput = document.getElementById("global-sso-file-input");
+    if (!fileInput || !fileInput.files.length) {
+      showToast("Please choose a grafana_auth_state.json file first", true);
+      return;
+    }
+    const btn = document.getElementById("btn-upload-sso");
+    const orig = btn ? btn.innerHTML : "Upload";
+    if (btn) { btn.disabled = true; btn.innerHTML = "Uploading..."; }
+
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    try {
+      const res = await fetch("/api/auth/upload-session", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(data.message || "Master session updated successfully!");
+        fileInput.value = "";
+        checkSessionStatus();
+        fetchLogs();
+      } else {
+        showToast("Upload failed: " + (data.error || "Unknown error"), true);
+      }
+    } catch(e) {
+      showToast("Network error uploading session file", true);
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    }
+  }
+
+  // Global Config Modal
+  async function openGlobalConfigModal() {
+    const modal = document.getElementById("global-config-modal");
+    if (modal) modal.style.display = "flex";
+    checkSessionStatus();
+    try {
+      const res = await fetch("/api/global-settings");
+      const data = await res.json();
+      if (data && data.settings) {
+        if (document.getElementById("global_timezone")) document.getElementById("global_timezone").value = data.settings.timezone || "Asia/Kolkata";
+        if (document.getElementById("global_proxy")) document.getElementById("global_proxy").value = data.settings.http_proxy || "";
+        if (document.getElementById("global_slack_bot_token")) document.getElementById("global_slack_bot_token").value = data.settings.slack_bot_token || "";
+      }
+    } catch(e) {
+      console.error("Failed to load global settings:", e);
+    }
+  }
+  function closeGlobalConfigModal() {
+    const modal = document.getElementById("global-config-modal");
+    if (modal) modal.style.display = "none";
+  }
+
+  async function saveGlobalConfig() {
+    const btn = document.querySelector("#global-config-modal .btn-orange");
+    const orig = btn ? btn.innerHTML : "Save Global Settings";
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = "Saving...";
+    }
+    const payload = {
+      timezone: document.getElementById("global_timezone") ? document.getElementById("global_timezone").value.trim() : "Asia/Kolkata",
+      http_proxy: document.getElementById("global_proxy") ? document.getElementById("global_proxy").value.trim() : "",
+      slack_bot_token: document.getElementById("global_slack_bot_token") ? document.getElementById("global_slack_bot_token").value.trim() : ""
+    };
+    try {
+      const res = await fetch("/api/global-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast("Global settings saved!");
+        closeGlobalConfigModal();
+        fetchLogs();
+      } else {
+        showToast("Failed to save global settings: " + (data.error || "Unknown"), true);
+      }
+    } catch(e) {
+      showToast("Network error saving global settings", true);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+      }
+    }
+  }
+
+  async function fetchLogs(animate = false) {
+    try {
+      const filterSite = document.getElementById("log-site-filter").value;
+      const url = filterSite && filterSite !== "all" ? `/api/logs?site_id=${filterSite}` : "/api/logs";
+      const res = await fetch(url);
+      const data = await res.json();
+      const terminal = document.getElementById("log-output");
+      terminal.innerHTML = "";
+      (data.logs || []).forEach(l => {
+        const div = document.createElement("div");
+        if (l.includes("[ERROR]") || l.includes("Failed")) {
+          div.className = "log-error";
+        } else if (l.includes("[SUCCESS]") || l.includes("Uploaded") || l.includes("saved")) {
+          div.className = "log-success";
+        } else if (l.includes("[WARN]")) {
+          div.className = "log-warn";
+        } else if (l.includes("[INFO]")) {
+          div.className = "log-info";
+        }
+        div.innerText = l;
+        terminal.appendChild(div);
+      });
+      terminal.scrollTop = terminal.scrollHeight;
+    } catch(e) {}
+  }
+
+  async function refreshLinksStatusSilently() {
+    if (!CURRENT_SITE_ID) return;
+    try {
+      const res = await fetch(`/api/sites/${CURRENT_SITE_ID}/links`);
+      const data = await res.json();
+      if (data.success && data.links) {
+        CURRENT_SITE_LINKS = data.links;
+        updateActiveTabStatusUI();
+        const tabs = document.querySelectorAll("#chrome-tabs-bar .chrome-tab");
+        CURRENT_SITE_LINKS.forEach((lk, idx) => {
+          if (tabs[idx]) {
+            const ind = tabs[idx].querySelector(".chrome-tab-indicator");
+            if (ind && !ind.classList.contains("new")) {
+              ind.className = `chrome-tab-indicator ${lk.enabled !== false ? 'active' : 'paused'}`;
+            }
+          }
+        });
+      }
+    } catch(e) {}
+  }
+
+  async function poll() {
+    await loadSites(true);
+    await refreshLinksStatusSilently();
+    await fetchLogs();
+  }
+
+  // Boot: poll until MongoDB is ready and sites are loaded (up to 20s)
+  async function bootPollUntilReady() {
+    await loadSites(false);
+    await fetchLogs();
+    // If no sites yet, keep retrying every 1.5s for up to 20s (waiting for Mongo background thread)
+    let retries = 0;
+    const maxRetries = 14;
+    const retryInterval = setInterval(async () => {
+      if (ALL_SITES.length > 0 || retries >= maxRetries) {
+        clearInterval(retryInterval);
+        return;
+      }
+      retries++;
+      await loadSites(false);
+    }, 1500);
+  }
+
+  // Initial Boot
+  bootPollUntilReady();
+  setInterval(poll, 3500);
+</script>
+
+</body>
+</html>

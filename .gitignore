@@ -4,6 +4,7 @@ venv/
 
 # Environment variables & secrets
 .env
+grafana_auth_state.json
 
 # Python cache
 __pycache__/
@@ -18,3 +19,4 @@ __pycache__/
 Thumbs.db
 .vscode/
 .idea/
+Untitled*

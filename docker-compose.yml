@@ -9,5 +9,6 @@ services:
     volumes:
       - ./.env:/app/.env
       - ./sites.json:/app/sites.json
+      - ./grafana_auth_state.json:/app/grafana_auth_state.json
     environment:
       - PYTHONUNBUFFERED=1

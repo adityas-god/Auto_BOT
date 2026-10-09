@@ -1,0 +1,14 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.github/
+.vscode/
+.idea/
+*.png
+*.log
+test_capture_result.png
+test_auth.png

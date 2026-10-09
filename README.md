@@ -23,14 +23,32 @@
 
 ```
 headless-bot/
-├── .env                  # Active environment configuration (synced with UI)
-├── .env.example          # Environment configuration template
-├── requirements.txt      # Python dependencies (playwright, requests, python-dotenv, flask, pytz)
-├── main.py               # Unified headless capture engine, Slack uploader, Web Operations UI & daemon
-├── setup.sh              # 1-step installer script for Ubuntu Linux (installs Chromium & venv)
-├── Dockerfile            # Container definition exposing port 5000
-├── docker-compose.yml    # Docker compose runner with host networking
-└── README.md             # Documentation
+├── core/                         # Core primitives, database & utilities
+│   ├── config.py                 # Environment variables, file paths & concurrency controls
+│   ├── database.py               # SiteManager, MongoDB Atlas sync & local fallback engine
+│   ├── logger.py                 # Thread-safe ring buffer logger & bot_log()
+│   ├── utils.py                  # Proxy resolution, time range & formatting helpers
+│   ├── shifts.py                 # On-duty shift schedule evaluator (Morning, Afternoon, Night)
+│   └── auth.py                   # Grafana credential & session token resolution
+├── engines/                      # Core automation & execution engines
+│   ├── grafana_capture.py        # Playwright headless Chromium screenshot & session engine
+│   ├── page_extractor.py         # Playwright DOM table, gauge, and badge extractor
+│   ├── ocr_engine.py             # Windows native OCR & Tesseract text extraction
+│   ├── anomaly_engine.py         # Sudden spike, cycle-over-cycle surge & keyword detector
+│   └── slack_notifier.py         # Official 3-step Slack S3 uploader & 1-on-1 DM engine
+├── scheduler/                    # Scheduling & worker daemon
+│   ├── runner.py                 # Individual link capture worker & alert pipeline
+│   └── scheduler.py              # Zero-conflict multi-site cycle orchestrator
+├── web/                          # Web Operations Center
+│   ├── app.py                    # Flask server & REST API endpoints
+│   ├── ui_template.py            # UI template loader
+│   └── templates/index.html      # Neo-brutalist Multi-Site Operations Center interface
+├── main.py                       # Unified CLI entry point & background daemon orchestrator
+├── sites.json                    # Local storage backup for multi-site configuration
+├── requirements.txt              # Python dependencies
+├── Dockerfile                    # Container definition
+├── docker-compose.yml            # Docker Compose configuration
+└── README.md                     # Documentation
 ```
 
 ---
