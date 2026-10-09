@@ -152,7 +152,10 @@ def run_link_capture_and_alert(site_id, link_id, force=False, caller_acquired_lo
         default_chan = channel_dests[0] if channel_dests else user_dests[0]
         uploader = SlackUploader(token=slack_token, channel_id=default_chan, thread_ts=thread_ts)
 
-        shifts_cfg = lk.get("shifts") or {}
+        site_shifts = site.get("shifts") or {}
+        lk_shifts = lk.get("shifts") or {}
+        shifts_cfg = dict(site_shifts)
+        shifts_cfg.update({k: v for k, v in lk_shifts.items() if v not in (None, "")})
         active_shift = get_active_shift(shifts_cfg, tz) if shifts_cfg else {"name": "Default", "user_ids": []}
 
         tag_mentions = ""
@@ -181,23 +184,9 @@ def run_link_capture_and_alert(site_id, link_id, force=False, caller_acquired_lo
         )
         formatted_msg = (tag_mentions + user_body).strip()
 
-        # 1. DIRECT 1-ON-1 DM DESTINATIONS (e.g. U0BJ1CP982V, U04RR0S1389)
-        # Delivers individual 1-on-1 private messages to each designated member
-        for uid in user_dests:
-            bot_log(f"[{site_name} -> {lk_title}] Delivering snapshot directly to Slack 1-on-1 DM (<@{uid}>)...", site_id=site_id)
-            ok, res = uploader.upload_screenshot(
-                lk_image,
-                message_text=formatted_msg,
-                title=f"{site_name} - {lk_title}",
-                target_channel_id=uid,
-                skip_thread=True
-            )
-            if ok:
-                bot_log(f"[{site_name} -> {lk_title}] Snapshot successfully delivered to DM (<@{uid}>)!", site_id=site_id)
-            else:
-                bot_log(f"[{site_name} -> {lk_title}] Direct DM upload to <@{uid}> failed: {res}", site_id=site_id)
-
-        # 2. CHANNEL DESTINATIONS (Starts with C or public channel)
+        # 1. CHANNEL DESTINATIONS (Always post routine/anomaly snapshots to channel/thread)
+        # On normal runs: posts casually with NO tags (tag_mentions is empty).
+        # On anomalies: posts with on-duty shift members tagged directly in the thread.
         if channel_dests and lk.get("send_channel", True):
             for c_chan in channel_dests:
                 thread_info = f" (thread: {thread_ts})" if thread_ts else ""
@@ -214,24 +203,36 @@ def run_link_capture_and_alert(site_id, link_id, force=False, caller_acquired_lo
                 else:
                     bot_log(f"[{site_name} -> {lk_title}] Slack channel upload to '{c_chan}' failed: {res}", site_id=site_id)
 
-        # 3. SECONDARY ON-DUTY SHIFT DM DISPATCH
+        # 2. PRIVATE 1-ON-1 DM ALERTS (DISPATCHED ONLY ON ANOMALY / BREACH)
+        # As requested: Routine snapshots stay in the channel/thread without DM interruptions.
+        # DMs to on-duty shift members and breach users are triggered ONLY when an anomaly is detected.
         link_send_dm = lk.get("send_dm", True) and shifts_cfg.get("send_dm", True)
-        if link_send_dm and channel_dests:
-            target_uids = []
-            if eval_res["breached"]:
-                target_uids = list(all_breach_mentions)
-            elif not lk.get("only_on_breach", False) and not lk_threshold.get("only_alert_on_breach", False):
-                target_uids = list(active_shift.get("user_ids", []))
+        dm_recipients = []
 
-            for uid in target_uids:
-                if uid in user_dests:
-                    continue  # Already received direct DM above
-                bot_log(f"[{site_name} -> {lk_title}] Dispatching secondary on-call DM alert to: <@{uid}>...", site_id=site_id)
+        if eval_res["breached"]:
+            for uid in user_dests:
+                if uid not in dm_recipients:
+                    dm_recipients.append(uid)
+            if link_send_dm:
+                for uid in all_breach_mentions:
+                    if uid not in dm_recipients:
+                        dm_recipients.append(uid)
+                for uid in active_shift.get("user_ids", []):
+                    if uid not in dm_recipients:
+                        dm_recipients.append(uid)
+        elif not channel_dests:
+            # Standalone private DM mode (only when NO channel is configured at all)
+            if not lk.get("only_on_breach", False) and not lk_threshold.get("only_alert_on_breach", False):
+                dm_recipients = list(user_dests)
+
+        if dm_recipients:
+            for uid in dm_recipients:
+                bot_log(f"[{site_name} -> {lk_title}] Anomaly detected! Dispatching on-call DM alert to: <@{uid}>...", site_id=site_id)
                 dm_ok, dm_res = uploader.send_dm_snapshot(uid, lk_image, message_text=user_body)
                 if dm_ok:
-                    bot_log(f"[{site_name} -> {lk_title}] DM delivered to <@{uid}>!", site_id=site_id)
+                    bot_log(f"[{site_name} -> {lk_title}] Anomaly alert delivered to DM (<@{uid}>)!", site_id=site_id)
                 else:
-                    bot_log(f"[{site_name} -> {lk_title}] DM to <@{uid}> failed: {dm_res}", site_id=site_id)
+                    bot_log(f"[{site_name} -> {lk_title}] DM alert to <@{uid}> failed: {dm_res}", site_id=site_id)
 
         SiteManager.update_site_link(site_id, link_id, {
             "last_status": "Success" if eval_res["status"] == "NORMAL" else "Anomaly Detected",
