@@ -10,5 +10,10 @@ services:
       - ./.env:/app/.env
       - ./sites.json:/app/sites.json
       - ./grafana_auth_state.json:/app/grafana_auth_state.json
+      - ./core:/app/core
+      - ./engines:/app/engines
+      - ./scheduler:/app/scheduler
+      - ./web:/app/web
+      - ./main.py:/app/main.py
     environment:
       - PYTHONUNBUFFERED=1

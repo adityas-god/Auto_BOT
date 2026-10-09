@@ -147,7 +147,8 @@ def run_link_capture_and_alert(site_id, link_id, force=False, caller_acquired_lo
             bot_log(f"[{site_name} -> {lk_title}] Slack dispatch skipped: No Slack Channel or Member ID configured.", site_id=site_id)
             return True, "No destination"
 
-        thread_ts = (lk.get("slack_thread_ts") or "").strip()
+        # Dedicated destination & thread resolution (Priority: link-level, Fallback: site-level)
+        thread_ts = str(lk.get("slack_thread_ts") or "").strip() or str(site.get("slack_thread_ts") or "").strip()
         default_chan = channel_dests[0] if channel_dests else user_dests[0]
         uploader = SlackUploader(token=slack_token, channel_id=default_chan, thread_ts=thread_ts)
 
@@ -184,7 +185,13 @@ def run_link_capture_and_alert(site_id, link_id, force=False, caller_acquired_lo
         # Delivers individual 1-on-1 private messages to each designated member
         for uid in user_dests:
             bot_log(f"[{site_name} -> {lk_title}] Delivering snapshot directly to Slack 1-on-1 DM (<@{uid}>)...", site_id=site_id)
-            ok, res = uploader.upload_screenshot(lk_image, message_text=formatted_msg, title=f"{site_name} - {lk_title}", target_channel_id=uid)
+            ok, res = uploader.upload_screenshot(
+                lk_image,
+                message_text=formatted_msg,
+                title=f"{site_name} - {lk_title}",
+                target_channel_id=uid,
+                skip_thread=True
+            )
             if ok:
                 bot_log(f"[{site_name} -> {lk_title}] Snapshot successfully delivered to DM (<@{uid}>)!", site_id=site_id)
             else:
@@ -193,8 +200,15 @@ def run_link_capture_and_alert(site_id, link_id, force=False, caller_acquired_lo
         # 2. CHANNEL DESTINATIONS (Starts with C or public channel)
         if channel_dests and lk.get("send_channel", True):
             for c_chan in channel_dests:
-                bot_log(f"[{site_name} -> {lk_title}] Uploading snapshot to Slack channel '{c_chan}'...", site_id=site_id)
-                ok, res = uploader.upload_screenshot(lk_image, message_text=formatted_msg, title=f"{site_name} - {lk_title}", target_channel_id=c_chan)
+                thread_info = f" (thread: {thread_ts})" if thread_ts else ""
+                bot_log(f"[{site_name} -> {lk_title}] Uploading snapshot to Slack channel '{c_chan}'{thread_info}...", site_id=site_id)
+                ok, res = uploader.upload_screenshot(
+                    lk_image,
+                    message_text=formatted_msg,
+                    title=f"{site_name} - {lk_title}",
+                    target_channel_id=c_chan,
+                    thread_ts=thread_ts
+                )
                 if ok:
                     bot_log(f"[{site_name} -> {lk_title}] Successfully delivered to Slack channel ({c_chan})!", site_id=site_id)
                 else:

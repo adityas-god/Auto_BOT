@@ -15,11 +15,36 @@ import requests
 from core.database import SiteManager
 
 
+def clean_slack_thread_ts(val):
+    if not val:
+        return None
+    val = str(val).strip()
+    if not val:
+        return None
+    if "thread_ts=" in val:
+        val = val.split("thread_ts=", 1)[1].split("&")[0].strip()
+    if "/thread/" in val:
+        after = val.split("/thread/", 1)[1].split("?")[0].strip("/")
+        if "-" in after:
+            val = after.split("-", 1)[1]
+    if "/archives/" in val and "/p" in val:
+        p_part = val.split("/archives/", 1)[1].split("?")[0].strip("/").split("/")[-1]
+        if p_part.startswith("p") and len(p_part) > 7:
+            digits = p_part[1:]
+            return f"{digits[:-6]}.{digits[-6:]}"
+    if val.startswith("p") and val[1:].replace(".", "").isdigit() and len(val) > 7:
+        digits = val[1:]
+        if "." in digits:
+            return digits
+        return f"{digits[:-6]}.{digits[-6:]}"
+    return val
+
+
 class SlackUploader:
     def __init__(self, token=None, channel_id=None, thread_ts=None):
         self.token = token or SiteManager.get_global_settings().get("slack_bot_token")
         self.channel_id = channel_id
-        self.thread_ts = thread_ts
+        self.thread_ts = clean_slack_thread_ts(thread_ts)
         self.headers = {"Authorization": f"Bearer {self.token}"}
 
     def test_auth(self):
@@ -38,7 +63,7 @@ class SlackUploader:
         except Exception as e:
             return False, str(e)
 
-    def post_text_message(self, message_text, target_channel=None):
+    def post_text_message(self, message_text, target_channel=None, thread_ts=None):
         if not self.token:
             return False, "Slack Bot Token is missing."
         dest = target_channel or self.channel_id
@@ -58,8 +83,11 @@ class SlackUploader:
 
         url = "https://slack.com/api/chat.postMessage"
         payload = {"channel": dest, "text": message_text}
-        if self.thread_ts and not skip_thread and not target_channel:
-            payload["thread_ts"] = self.thread_ts
+        effective_thread = thread_ts or (self.thread_ts if not skip_thread else None)
+        if effective_thread and not skip_thread:
+            clean_thread = clean_slack_thread_ts(effective_thread)
+            if clean_thread:
+                payload["thread_ts"] = clean_thread
         try:
             resp = requests.post(
                 url,
@@ -79,7 +107,7 @@ class SlackUploader:
         except Exception as e:
             return False, str(e)
 
-    def upload_screenshot(self, image_path, message_text=None, title=None, target_channel_id=None, skip_thread=False):
+    def upload_screenshot(self, image_path, message_text=None, title=None, target_channel_id=None, thread_ts=None, skip_thread=False):
         if not self.token:
             return False, "Slack Bot Token is missing."
         dest_channel = target_channel_id or self.channel_id
@@ -139,8 +167,11 @@ class SlackUploader:
                 "channel_id": dest_channel,
                 "initial_comment": comment
             }
-            if self.thread_ts and not skip_thread and not target_channel_id:
-                complete_payload["thread_ts"] = self.thread_ts
+            effective_thread = thread_ts or (self.thread_ts if not skip_thread else None)
+            if effective_thread and not skip_thread:
+                clean_thread = clean_slack_thread_ts(effective_thread)
+                if clean_thread:
+                    complete_payload["thread_ts"] = clean_thread
 
             resp3 = requests.post(
                 "https://slack.com/api/files.completeUploadExternal",

@@ -142,6 +142,7 @@ class GrafanaCapture:
             # Having Google session cookies in the browser allows automatic Google SSO login
             # for ANY corporate Grafana server (gem-dash, cloudwatch, etc.)!
             temp_st_to_clean = None
+            sanitized_cookies = []
             if os.path.exists(auth_state_path) and os.path.isfile(auth_state_path):
                 try:
                     with open(auth_state_path, "r", encoding="utf-8") as af:

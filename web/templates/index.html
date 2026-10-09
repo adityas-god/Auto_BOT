@@ -2230,7 +2230,7 @@
             </div>
             <div class="form-field">
               <label class="form-label" for="tab_cfg_thread">Thread Timestamp (Optional)</label>
-              <input type="text" id="tab_cfg_thread" class="input-field input-code" placeholder="e.g. 1789370242.463359" value="${escapeHtml(lk.slack_thread_ts || '')}">
+              <input type="text" id="tab_cfg_thread" class="input-field input-code" placeholder="Inherits: ${escapeHtml(activeSiteObj.slack_thread_ts || 'None (Channel Root)')}" value="${escapeHtml(lk.slack_thread_ts || '')}">
             </div>
           </div>
           <div class="form-field" style="margin-top: 6px;">
