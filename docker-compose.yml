@@ -9,6 +9,7 @@ services:
     volumes:
       - ./.env:/app/.env
       - ./sites.json:/app/sites.json
+      - ./sites_runtime.json:/app/sites_runtime.json
       - ./grafana_auth_state.json:/app/grafana_auth_state.json
       - ./core:/app/core
       - ./engines:/app/engines

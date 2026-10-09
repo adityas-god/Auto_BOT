@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
 SITES_PATH = os.path.join(BASE_DIR, "sites.json")
+SITES_RUNTIME_PATH = os.path.join(BASE_DIR, "sites_runtime.json")
 
 if os.path.isdir(ENV_PATH):
     ENV_PATH = os.path.join(ENV_PATH, "settings.env")

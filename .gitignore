@@ -5,6 +5,7 @@ venv/
 # Environment variables & secrets
 .env
 grafana_auth_state.json
+sites_runtime.json
 
 # Python cache
 __pycache__/

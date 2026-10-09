@@ -16,6 +16,7 @@ from core.config import (
     BASE_DIR,
     ENV_PATH,
     SITES_PATH,
+    SITES_RUNTIME_PATH,
     MONGODB_URI,
     MONGO_DB_NAME,
     MONGO_SITES_COLLECTION,
@@ -206,17 +207,26 @@ class SiteManager:
 
     @classmethod
     def _load_local_sites_file(cls):
-        """Synchronously load local sites.json if available."""
-        if os.path.exists(SITES_PATH) and os.path.isfile(SITES_PATH):
+        """Synchronously load persistent sites_runtime.json or sites.json seed."""
+        target_path = SITES_RUNTIME_PATH if (os.path.exists(SITES_RUNTIME_PATH) and os.path.isfile(SITES_RUNTIME_PATH)) else SITES_PATH
+        if os.path.exists(target_path) and os.path.isfile(target_path):
             try:
-                with open(SITES_PATH, "r", encoding="utf-8") as f:
+                with open(target_path, "r", encoding="utf-8") as f:
                     content = f.read().strip()
                     if content:
                         loaded = json.loads(content)
                         if isinstance(loaded, dict) and "sites" in loaded:
-                            return _make_json_safe(loaded)
+                            data = _make_json_safe(loaded)
+                            # Seed runtime file immediately if it was loaded from sites.json
+                            if target_path != SITES_RUNTIME_PATH:
+                                try:
+                                    with open(SITES_RUNTIME_PATH, "w", encoding="utf-8") as rf:
+                                        json.dump(data, rf, indent=2)
+                                except Exception:
+                                    pass
+                            return data
             except Exception as e:
-                print(f"[STARTUP][WARN] Could not parse local sites.json: {e}", flush=True)
+                print(f"[STARTUP][WARN] Could not parse {os.path.basename(target_path)}: {e}", flush=True)
         return None
 
     @classmethod
@@ -224,9 +234,10 @@ class SiteManager:
         """Initialise in-memory cache synchronously from local backup and trigger background Atlas sync."""
         with cls._lock:
             disk_mtime = 0
-            if os.path.exists(SITES_PATH):
+            target_path = SITES_RUNTIME_PATH if os.path.exists(SITES_RUNTIME_PATH) else SITES_PATH
+            if os.path.exists(target_path):
                 try:
-                    disk_mtime = os.path.getmtime(SITES_PATH)
+                    disk_mtime = os.path.getmtime(target_path)
                 except Exception:
                     pass
 
@@ -366,29 +377,15 @@ class SiteManager:
                             if local_target.get("paused") is not None:
                                 ms["paused"] = local_target["paused"]
 
-                            # Precise link-by-link merge: local changes take precedence for non-empty fields
+                            # Cloud Atlas is authoritative for all configured link parameters.
                             local_links = local_target.get("links") or []
                             atlas_links = ms.get("links") or []
-                            if local_links and not atlas_links:
+                            if not atlas_links and local_links:
                                 ms["links"] = local_links
-                            elif local_links and atlas_links:
-                                atlas_map = {l["id"]: l for l in atlas_links}
-                                merged_lks = []
-                                for llk in local_links:
-                                    lid = llk.get("id")
-                                    if lid in atlas_map:
-                                        alk = dict(atlas_map[lid])
-                                        for k, v in llk.items():
-                                            if v not in (None, "", []):
-                                                alk[k] = v
-                                        merged_lks.append(alk)
-                                    else:
-                                        merged_lks.append(llk)
-                                local_l_ids = {l["id"] for l in local_links}
-                                for alk in atlas_links:
-                                    if alk.get("id") not in local_l_ids:
-                                        merged_lks.append(alk)
-                                ms["links"] = merged_lks
+                            elif atlas_links:
+                                atlas_l_ids = {l["id"] for l in atlas_links}
+                                new_local_lks = [l for l in local_links if l.get("id") not in atlas_l_ids]
+                                ms["links"] = atlas_links + new_local_lks
 
                             if local_target.get("links_initialized"):
                                 ms["links_initialized"] = True
@@ -444,6 +441,11 @@ class SiteManager:
             # Push synchronized state to Atlas and local file
             cls._bg_push_snapshot(snapshot)
             try:
+                with open(SITES_RUNTIME_PATH, "w", encoding="utf-8") as rf:
+                    json.dump(snapshot, rf, indent=2)
+            except Exception:
+                pass
+            try:
                 with open(SITES_PATH, "w", encoding="utf-8") as f:
                     json.dump(snapshot, f, indent=2)
             except Exception:
@@ -488,11 +490,17 @@ class SiteManager:
         1. Writes sites.json instantly (local backup, fast).
         2. Fires a background thread to push to Atlas - never blocks the caller.
         """
-        # 1. Local backup
+        # 1. Local backup (write persistent runtime file and seed file)
+        try:
+            with open(SITES_RUNTIME_PATH, "w", encoding="utf-8") as rf:
+                json.dump(cls._data, rf, indent=2)
+        except Exception:
+            pass
         try:
             with open(SITES_PATH, "w", encoding="utf-8") as f:
                 json.dump(cls._data, f, indent=2)
-            cls._last_disk_mtime = os.path.getmtime(SITES_PATH) if os.path.exists(SITES_PATH) else time.time()
+            target_path = SITES_RUNTIME_PATH if os.path.exists(SITES_RUNTIME_PATH) else SITES_PATH
+            cls._last_disk_mtime = os.path.getmtime(target_path) if os.path.exists(target_path) else time.time()
         except Exception as exc:
             print(f"[WARN] sites.json write failed: {exc}", flush=True)
 
