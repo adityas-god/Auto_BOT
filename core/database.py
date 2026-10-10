@@ -897,6 +897,25 @@ class SiteManager:
                     v = updates[upd_key]
                     shifts[tgt_key] = cast(v) if cast is bool else cast(v).strip()
 
+            if target.get("bundle_screenshots"):
+                # When bundle mode is ON, propagate shared configurations to all links under this site
+                for lk in target.get("links", []):
+                    if "interval_minutes" in updates:
+                        lk["interval_minutes"] = target["interval_minutes"]
+                    if "slack_message" in updates and str(updates["slack_message"]).strip():
+                        lk["slack_message"] = target["slack_message"]
+                    if "slack_channel_id" in updates and str(updates["slack_channel_id"]).strip():
+                        lk["slack_channel_id"] = target["slack_channel_id"]
+                    if "slack_thread_ts" in updates:
+                        lk["slack_thread_ts"] = target["slack_thread_ts"]
+                    if "paused" in updates:
+                        lk["enabled"] = not target["paused"]
+                        lk["last_status"] = "Paused" if target["paused"] else "Idle"
+                    if "threshold" in target and isinstance(target["threshold"], dict):
+                        lk["threshold"] = json.loads(json.dumps(target["threshold"]))
+                    if "shifts" in target and isinstance(target["shifts"], dict):
+                        lk["shifts"] = json.loads(json.dumps(target["shifts"]))
+
             cls._save_data_no_lock()
 
             safe_ret = _make_json_safe(dict(target))
@@ -1004,6 +1023,19 @@ class SiteManager:
                         except Exception:
                             pass
 
+                    sibling_ref = next((l for l in s.get("links", []) if l.get("url")), None) or (s.get("links")[0] if s.get("links") else None)
+                    is_b = bool(s.get("bundle_screenshots"))
+                    b_interval = ((sibling_ref.get("interval_minutes") if sibling_ref else None) or s.get("interval_minutes") or 30) if is_b else 0
+                    b_msg = ((sibling_ref.get("slack_message") if sibling_ref else None) or s.get("slack_message")) if is_b else None
+                    b_chan = ((sibling_ref.get("slack_channel_id") if sibling_ref else None) or s.get("slack_channel_id", "")) if is_b else None
+                    b_thread = ((sibling_ref.get("slack_thread_ts") if sibling_ref else None) or s.get("slack_thread_ts", "")) if is_b else None
+                    b_enabled = (not s.get("paused", False)) if is_b else bool(link_data.get("enabled", True))
+                    sib_sh = (sibling_ref.get("shifts") or {}) if (is_b and sibling_ref) else (s.get("shifts") or {})
+                    sib_th = (sibling_ref.get("threshold") or {}) if (is_b and sibling_ref) else (s.get("threshold") or {})
+                    b_send_chan = sibling_ref.get("send_channel", True) if (is_b and sibling_ref) else True
+                    b_send_dm = sibling_ref.get("send_dm", True) if (is_b and sibling_ref) else True
+                    b_breach_only = sibling_ref.get("only_on_breach", False) if (is_b and sibling_ref) else False
+
                     new_link = {
                         "id": link_id,
                         "title": str(link_data.get("title") or "Monitored Link").strip(),
@@ -1011,36 +1043,36 @@ class SiteManager:
                         "username": raw_user,
                         "password": raw_pass,
                         "token": raw_token,
-                        "interval_minutes": max(0, safe_int(link_data.get("interval_minutes"), 0)),
-                        "time_range": str(link_data.get("time_range") or "url_default").strip(),
-                        "enabled": bool(link_data.get("enabled", True)),
-                        "slack_channel_id": cls.parse_channel_id(link_data.get("slack_channel_id") or s.get("slack_channel_id", "")),
-                        "slack_thread_ts": cls.parse_thread_ts(link_data.get("slack_thread_ts") or s.get("slack_thread_ts", "")),
-                        "slack_message": str(link_data.get("slack_message") or s.get("slack_message") or "*Grafana Snapshot Alert* - {datetime}").strip(),
-                        "send_channel": bool(link_data.get("send_channel", True)),
-                        "send_dm": bool(link_data.get("send_dm", True)),
-                        "only_on_breach": bool(link_data.get("only_on_breach", False)),
+                        "interval_minutes": max(0, safe_int(link_data.get("interval_minutes") or b_interval, 0)),
+                        "time_range": str(link_data.get("time_range") or (sibling_ref.get("time_range") if is_b and sibling_ref else "url_default")).strip(),
+                        "enabled": b_enabled,
+                        "slack_channel_id": cls.parse_channel_id(link_data.get("slack_channel_id") or b_chan or s.get("slack_channel_id", "")),
+                        "slack_thread_ts": cls.parse_thread_ts(link_data.get("slack_thread_ts") or b_thread or s.get("slack_thread_ts", "")),
+                        "slack_message": str(link_data.get("slack_message") or b_msg or s.get("slack_message") or "*Grafana Snapshot Alert* - {datetime}").strip(),
+                        "send_channel": bool(link_data.get("send_channel", b_send_chan)),
+                        "send_dm": bool(link_data.get("send_dm", b_send_dm)),
+                        "only_on_breach": bool(link_data.get("only_on_breach", b_breach_only)),
                         "threshold": {
-                            "enabled": bool(link_data.get("threshold_enabled", True)),
-                            "ai_mode": bool(link_data.get("threshold_ai_mode", False)),
-                            "ai_prompt": str(link_data.get("threshold_ai_prompt") or "").strip(),
-                            "metric_type": str(link_data.get("threshold_metric_type") or "spike_jump").strip(),
-                            "operator": str(link_data.get("threshold_operator") or ">").strip(),
-                            "value": str(link_data.get("threshold_value") or "20").strip(),
-                            "keywords": str(link_data.get("threshold_keywords") or "").strip(),
-                            "colors": str(link_data.get("threshold_colors") or "red, orange, yellow").strip(),
-                            "breach_users": str(link_data.get("threshold_breach_users") or s.get("threshold", {}).get("breach_users", "")).strip(),
-                            "only_alert_on_breach": bool(link_data.get("only_on_breach", False))
+                            "enabled": bool(link_data.get("threshold_enabled", sib_th.get("enabled", True))),
+                            "ai_mode": bool(link_data.get("threshold_ai_mode", sib_th.get("ai_mode", False))),
+                            "ai_prompt": str(link_data.get("threshold_ai_prompt") or sib_th.get("ai_prompt", "")).strip(),
+                            "metric_type": str(link_data.get("threshold_metric_type") or sib_th.get("metric_type", "spike_jump")).strip(),
+                            "operator": str(link_data.get("threshold_operator") or sib_th.get("operator", ">")).strip(),
+                            "value": str(link_data.get("threshold_value") or sib_th.get("value", "20")).strip(),
+                            "keywords": str(link_data.get("threshold_keywords") or sib_th.get("keywords", "")).strip(),
+                            "colors": str(link_data.get("threshold_colors") or sib_th.get("colors", "red, orange, yellow")).strip(),
+                            "breach_users": str(link_data.get("threshold_breach_users") or sib_th.get("breach_users", "")).strip(),
+                            "only_alert_on_breach": bool(link_data.get("only_on_breach", sib_th.get("only_alert_on_breach", b_breach_only)))
                         },
                         "shifts": {
-                            "morning_hours": str((link_data.get("shifts") or {}).get("morning_hours") or s.get("shifts", {}).get("morning_hours") or "06:00-14:00").strip(),
-                            "morning_users": str((link_data.get("shifts") or {}).get("morning_users") or s.get("shifts", {}).get("morning_users") or "").strip(),
-                            "afternoon_hours": str((link_data.get("shifts") or {}).get("afternoon_hours") or s.get("shifts", {}).get("afternoon_hours") or "14:00-22:00").strip(),
-                            "afternoon_users": str((link_data.get("shifts") or {}).get("afternoon_users") or s.get("shifts", {}).get("afternoon_users") or "").strip(),
-                            "night_hours": str((link_data.get("shifts") or {}).get("night_hours") or s.get("shifts", {}).get("night_hours") or "22:00-06:00").strip(),
-                            "night_users": str((link_data.get("shifts") or {}).get("night_users") or s.get("shifts", {}).get("night_users") or "").strip(),
-                            "tag_channel": bool((link_data.get("shifts") or {}).get("tag_channel", s.get("shifts", {}).get("tag_channel", True))),
-                            "send_dm": bool((link_data.get("shifts") or {}).get("send_dm", s.get("shifts", {}).get("send_dm", True)))
+                            "morning_hours": str((link_data.get("shifts") or {}).get("morning_hours") or sib_sh.get("morning_hours") or "06:00-14:00").strip(),
+                            "morning_users": str((link_data.get("shifts") or {}).get("morning_users") or sib_sh.get("morning_users") or "").strip(),
+                            "afternoon_hours": str((link_data.get("shifts") or {}).get("afternoon_hours") or sib_sh.get("afternoon_hours") or "14:00-22:00").strip(),
+                            "afternoon_users": str((link_data.get("shifts") or {}).get("afternoon_users") or sib_sh.get("afternoon_users") or "").strip(),
+                            "night_hours": str((link_data.get("shifts") or {}).get("night_hours") or sib_sh.get("night_hours") or "22:00-06:00").strip(),
+                            "night_users": str((link_data.get("shifts") or {}).get("night_users") or sib_sh.get("night_users") or "").strip(),
+                            "tag_channel": bool((link_data.get("shifts") or {}).get("tag_channel", sib_sh.get("tag_channel", True))),
+                            "send_dm": bool((link_data.get("shifts") or {}).get("send_dm", sib_sh.get("send_dm", True)))
                         },
                         "last_reading": None,
                         "last_run_time": None,
@@ -1141,6 +1173,47 @@ class SiteManager:
                         if "send_dm" in updates["shifts"]:
                             sh["send_dm"] = bool(updates["shifts"]["send_dm"])
 
+                    if s.get("bundle_screenshots"):
+                        # If bundle mode is ON, changes made on one tab sync to ALL sibling tabs and the site!
+                        shared_link_keys = (
+                            "interval_minutes", "slack_message", "slack_channel_id",
+                            "slack_thread_ts", "send_channel", "send_dm", "only_on_breach",
+                            "time_range"
+                        )
+                        for other_lk in links:
+                            if other_lk["id"] == link_id:
+                                continue
+                            for k in shared_link_keys:
+                                if k in updates:
+                                    other_lk[k] = target[k]
+                            if any(k.startswith("threshold") for k in updates) or "only_on_breach" in updates:
+                                other_lk["threshold"] = json.loads(json.dumps(target.get("threshold", {})))
+                            if "shifts" in updates:
+                                other_lk["shifts"] = json.loads(json.dumps(target.get("shifts", {})))
+                            if "enabled" in updates:
+                                other_lk["enabled"] = target["enabled"]
+                                other_lk["last_status"] = "Active" if target["enabled"] else "Paused"
+
+                        # Keep site-level fallbacks in sync
+                        if "interval_minutes" in updates:
+                            s["interval_minutes"] = target["interval_minutes"]
+                        if "slack_message" in updates:
+                            s["slack_message"] = target["slack_message"]
+                        if "slack_channel_id" in updates:
+                            s["slack_channel_id"] = target["slack_channel_id"]
+                        if "slack_thread_ts" in updates:
+                            s["slack_thread_ts"] = target["slack_thread_ts"]
+                        if "threshold" in target:
+                            s["threshold"] = json.loads(json.dumps(target["threshold"]))
+                        if "shifts" in target:
+                            s["shifts"] = json.loads(json.dumps(target["shifts"]))
+                        if "enabled" in updates:
+                            s["paused"] = not target["enabled"]
+                            st = cls._site_states.get(site_id)
+                            if st:
+                                st["is_paused"] = s["paused"]
+                                st["last_status"] = "Paused" if s["paused"] else "Active"
+
                     cls._save_data_no_lock()
                     if log:
                         log_msg = f"[{s['name']}] Updated monitored link '{target['title']}' ({link_id})"
@@ -1188,12 +1261,14 @@ class SiteManager:
         log_msg = ""
         en_val = None
         found_site = False
+        is_bundle_site = False
         target_title = link_id
         site_name = site_id
         with cls._lock:
             for s in cls._data.get("sites", []):
                 if s["id"] == site_id:
                     found_site = True
+                    is_bundle_site = bool(s.get("bundle_screenshots"))
                     site_name = s.get("name", site_id)
                     links = s.setdefault("links", [])
                     target = next((lk for lk in links if lk["id"] == link_id), None)
@@ -1203,7 +1278,20 @@ class SiteManager:
                         target_title = target.get("title") or link_id
                         
                         st = cls._site_states.get(site_id)
-                        if en_val:
+                        if s.get("bundle_screenshots"):
+                            # When bundle is ON, pausing/starting any tab pauses/starts ALL tabs in the bundle
+                            s["paused"] = not en_val
+                            if st:
+                                st["is_paused"] = not en_val
+                                st["last_status"] = "Active" if en_val else "Paused"
+                            now_ts = time.time()
+                            for lk in links:
+                                lk["enabled"] = en_val
+                                lk["last_status"] = "Capturing..." if en_val else "Paused"
+                                if en_val:
+                                    lk["last_run_ts"] = now_ts
+                            log_msg = f"[{s['name']}] Bundle monitoring {'ENABLED' if en_val else 'PAUSED'} across all {len(links)} tabs."
+                        elif en_val:
                             s["paused"] = False
                             if st:
                                 st["is_paused"] = False
@@ -1231,15 +1319,20 @@ class SiteManager:
             if log_msg:
                 bot_log(log_msg, site_id=site_id)
             if en_val:
-                run_key = f"{site_id}_{link_id}"
-                with ACTIVE_LINK_LOCK:
-                    if run_key not in ACTIVE_LINK_RUNS:
-                        ACTIVE_LINK_RUNS.add(run_key)
-                        bot_log(f"[{site_name}] Dispatching single instant snapshot for enabled link '{target_title}'...", site_id=site_id)
-                        from scheduler.runner import run_link_capture_and_alert
-                        threading.Thread(target=run_link_capture_and_alert, args=(site_id, link_id, True, True), daemon=True).start()
-                    else:
-                        bot_log(f"[{site_name}] Link '{target_title}' capture already in flight, skipping duplicate trigger.", site_id=site_id)
+                if is_bundle_site:
+                    bot_log(f"[{site_name}] Dispatching bundled snapshot cycle for all enabled tabs...", site_id=site_id)
+                    from scheduler.runner import run_site_bundle_capture_and_alert
+                    threading.Thread(target=run_site_bundle_capture_and_alert, args=(site_id, True, True), daemon=True).start()
+                else:
+                    run_key = f"{site_id}_{link_id}"
+                    with ACTIVE_LINK_LOCK:
+                        if run_key not in ACTIVE_LINK_RUNS:
+                            ACTIVE_LINK_RUNS.add(run_key)
+                            bot_log(f"[{site_name}] Dispatching single instant snapshot for enabled link '{target_title}'...", site_id=site_id)
+                            from scheduler.runner import run_link_capture_and_alert
+                            threading.Thread(target=run_link_capture_and_alert, args=(site_id, link_id, True, True), daemon=True).start()
+                        else:
+                            bot_log(f"[{site_name}] Link '{target_title}' capture already in flight, skipping duplicate trigger.", site_id=site_id)
             return True, en_val
         if not found_site:
             return False, "Site not found"
@@ -1294,15 +1387,17 @@ class SiteManager:
                         st["last_status"] = "Paused" if new_val else "Active"
                         if new_val:
                             st["next_run_due"] = 0
+                            for lk in s.get("links", []):
+                                lk["enabled"] = False
+                                lk["last_status"] = "Paused"
                         else:
                             now_ts = time.time()
                             links = s.get("links", [])
-                            has_any_enabled = any(lk.get("enabled", True) for lk in links if lk.get("url"))
                             for lk in links:
                                 if lk.get("url"):
-                                    if not has_any_enabled:
-                                        lk["enabled"] = True
+                                    lk["enabled"] = True
                                     lk["last_run_ts"] = now_ts
+                                    lk["last_status"] = "Idle"
 
                             interval_sec = max(60, safe_int(s.get("interval_minutes"), 1) * 60)
                             st["next_run_due"] = now_ts + interval_sec

@@ -1025,7 +1025,7 @@
             </div>
             <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
               <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; background: #fafaf9; border: 1.5px solid var(--border-light); padding: 6px 12px; border-radius: 6px;">
-                <input type="checkbox" id="bundle_screenshots" onchange="saveCurrentSite(true)" style="accent-color: var(--primary-orange); width: 18px; height: 18px; cursor: pointer;">
+                <input type="checkbox" id="bundle_screenshots" onchange="onBundleToggleChange()" style="accent-color: var(--primary-orange); width: 18px; height: 18px; cursor: pointer;">
                 <span style="font-size: 11.5px; font-weight: 700; color: var(--text-dark);">Bundle in 1 Post</span>
               </label>
               <button type="button" class="btn btn-orange" id="btn-run-all-bundle" onclick="triggerCurrentSiteRun()" style="height: 33px; font-size: 11.5px; font-weight: 700; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px;" title="Capture all link tabs under this site now and deliver in 1 bundled Slack message">
@@ -1824,16 +1824,18 @@
     let lk = null;
 
     if (isNew) {
+      const isBundleOn = document.getElementById("bundle_screenshots") ? document.getElementById("bundle_screenshots").checked : (activeSiteObj.bundle_screenshots === true);
+      const siblingLink = CURRENT_SITE_LINKS.find(l => l.url) || CURRENT_SITE_LINKS[0] || {};
       lk = {
         title: "",
         url: "",
-        username: "",
-        password_set: false,
-        token_set: false,
-        interval_minutes: Math.max(1, parseInt(activeSiteObj.interval_minutes, 10) || 1),
-        time_range: "url_default",
-        enabled: true,
-        threshold: {
+        username: (isBundleOn && siblingLink.username) ? siblingLink.username : "",
+        password_set: isBundleOn && !!siblingLink.password_set,
+        token_set: isBundleOn && !!siblingLink.token_set,
+        interval_minutes: isBundleOn ? (siblingLink.interval_minutes || parseInt(activeSiteObj.interval_minutes, 10) || 30) : Math.max(1, parseInt(activeSiteObj.interval_minutes, 10) || 1),
+        time_range: (isBundleOn && siblingLink.time_range) ? siblingLink.time_range : "url_default",
+        enabled: isBundleOn ? (activeSiteObj.paused === false) : true,
+        threshold: (isBundleOn && siblingLink.threshold) ? JSON.parse(JSON.stringify(siblingLink.threshold)) : {
           enabled: true,
           metric_type: "spike_jump",
           operator: ">",
@@ -1842,7 +1844,7 @@
           colors: "red, orange, yellow",
           breach_users: ""
         },
-        shifts: {
+        shifts: (isBundleOn && siblingLink.shifts) ? JSON.parse(JSON.stringify(siblingLink.shifts)) : {
           morning_hours: siteShifts.morning_hours || "06:00-14:00",
           morning_users: siteShifts.morning_users || "",
           afternoon_hours: siteShifts.afternoon_hours || "14:00-22:00",
@@ -1852,12 +1854,12 @@
           tag_channel: siteShifts.tag_channel !== false,
           send_dm: siteShifts.send_dm !== false
         },
-        slack_channel_id: "",
-        slack_thread_ts: "",
-        slack_message: "*Grafana Snapshot Alert* - {datetime}",
-        send_channel: true,
-        send_dm: true,
-        only_on_breach: false
+        slack_channel_id: (isBundleOn && siblingLink.slack_channel_id) ? siblingLink.slack_channel_id : (activeSiteObj.slack_channel_id || ""),
+        slack_thread_ts: (isBundleOn && siblingLink.slack_thread_ts) ? siblingLink.slack_thread_ts : (activeSiteObj.slack_thread_ts || ""),
+        slack_message: (isBundleOn && siblingLink.slack_message) ? siblingLink.slack_message : (activeSiteObj.slack_message || "*Grafana Snapshot Alert* - {datetime}"),
+        send_channel: (isBundleOn && siblingLink.send_channel !== undefined) ? siblingLink.send_channel : true,
+        send_dm: (isBundleOn && siblingLink.send_dm !== undefined) ? siblingLink.send_dm : true,
+        only_on_breach: isBundleOn ? !!siblingLink.only_on_breach : false
       };
     } else {
       lk = CURRENT_SITE_LINKS.find(l => l.id === ACTIVE_TAB_LINK_ID);
@@ -1966,6 +1968,11 @@
     const activeSiteState = activeSiteObj.state || {};
     const isSitePaused = (activeSiteObj.paused !== false) && (activeSiteState.is_paused !== false);
 
+    const isBundleOn = document.getElementById("bundle_screenshots") ? document.getElementById("bundle_screenshots").checked : (activeSiteObj.bundle_screenshots === true);
+    if (isBundleOn) {
+      intVal = siteFallbackInt;
+    }
+
     contentPanel.innerHTML = `
       <!-- Link Banner Header -->
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-dark); padding-bottom: 12px; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
@@ -2002,6 +2009,13 @@
         </div>
       </div>
 
+      ${isBundleOn ? `
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding: 7px 12px; background: #fff7ed; border: 1.5px solid #fed7aa; border-radius: 6px; font-size: 11.5px; color: #9a3412;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+          <span><strong>Bundle Sync Active:</strong> Interval, Slack Message, Channel, Thread, and Pausing/Resuming automatically sync across all tabs in this site.</span>
+        </div>
+      ` : ''}
+
       <!-- Link Monitoring State & Quick Action Banner (Single Authoritative Tab Monitor Control) -->
       ${!isNew ? `
         <div id="link-monitoring-banner" class="monitoring-control-card ${isEnabled ? 'running-state' : 'paused-state'}" style="margin-bottom: 14px; padding: 12px 16px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; border: 1.5px solid ${isEnabled ? '#86efac' : '#fcd34d'}; background: ${isEnabled ? '#f0fdf4' : '#fffbeb'};">
@@ -2009,20 +2023,24 @@
             <div id="tab-status-indicator-dot" class="status-indicator-circle ${isEnabled ? 'running' : 'paused'}" style="width: 12px; height: 12px; border-radius: 50%; background: ${isEnabled ? '#22c55e' : '#f59e0b'}; box-shadow: 0 0 8px ${isEnabled ? '#22c55e' : '#f59e0b'};"></div>
             <div>
               <div id="tab-status-headline" style="font-family: 'Barlow Condensed', sans-serif; font-size: 15.5px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; color: ${isEnabled ? '#15803d' : '#b45309'};">
-                ${isEnabled ? `TAB MONITORING ACTIVE (EVERY ${intVal}M)` : 'TAB MONITORING PAUSED'}
+                ${isBundleOn
+                  ? (isEnabled ? `BUNDLE MONITORING ACTIVE (EVERY ${intVal}M)` : 'BUNDLE MONITORING PAUSED')
+                  : (isEnabled ? `TAB MONITORING ACTIVE (EVERY ${intVal}M)` : 'TAB MONITORING PAUSED')}
               </div>
               <div id="tab-status-subline" style="font-size: 11.5px; color: #52525b;">
-                ${isEnabled ? `Automated checks for this link run every ${intVal} minutes. Alerts route to configured Slack destination.` : 'This link tab is currently paused and skipped in monitoring cycles. Click Start Tab Monitoring to activate.'}
+                ${isBundleOn
+                  ? (isEnabled ? `All enabled tabs in this site run together every ${intVal} minutes and deliver in 1 bundled Slack post.` : 'All link tabs in this bundle are currently paused. Click Start to resume automated checks.')
+                  : (isEnabled ? `Automated checks for this link run every ${intVal} minutes. Alerts route to configured Slack destination.` : 'This link tab is currently paused and skipped in monitoring cycles. Click Start Tab Monitoring to activate.')}
               </div>
             </div>
           </div>
           <button type="button" class="btn" id="btn-tab-toggle-monitoring" onclick="toggleActiveTabLink('${lk.id}')" style="font-size: 12px; font-weight: 700; padding: 6px 16px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border-radius: 4px; ${isEnabled ? 'background: #fff; border: 1.5px solid #d97706; color: #b45309;' : 'background: #16a34a; border: 1px solid #15803d; color: #fff;'}">
             ${isEnabled ? `
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
-              <span>Pause Tab Monitoring</span>
+              <span>${isBundleOn ? 'Pause All Bundle Tabs' : 'Pause Tab Monitoring'}</span>
             ` : `
               <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-              <span>Start Tab Monitoring</span>
+              <span>${isBundleOn ? 'Start All Bundle Tabs' : 'Start Tab Monitoring'}</span>
             `}
           </button>
         </div>
@@ -2533,6 +2551,10 @@
     if (metricIntEl) metricIntEl.innerText = minVal + " MINS";
     const hiddenIntEl = document.getElementById("interval_minutes");
     if (hiddenIntEl) hiddenIntEl.value = String(minVal);
+    const isBundle = document.getElementById("bundle_screenshots") && document.getElementById("bundle_screenshots").checked;
+    if (isBundle && Array.isArray(CURRENT_SITE_LINKS)) {
+      CURRENT_SITE_LINKS.forEach(l => { l.interval_minutes = minVal; });
+    }
   }
 
   function toggleLinkSection(secId, event) {
@@ -2648,6 +2670,14 @@
     if (tabSlackMsg && document.getElementById("slack_message")) {
       document.getElementById("slack_message").value = tabSlackMsg;
     }
+    const tabSlackChan = document.getElementById("tab_cfg_channel") ? document.getElementById("tab_cfg_channel").value.trim() : "";
+    if (tabSlackChan && document.getElementById("slack_channel_id")) {
+      document.getElementById("slack_channel_id").value = tabSlackChan;
+    }
+    const tabSlackThread = document.getElementById("tab_cfg_thread") ? document.getElementById("tab_cfg_thread").value.trim() : "";
+    if (document.getElementById("slack_thread_ts")) {
+      document.getElementById("slack_thread_ts").value = tabSlackThread;
+    }
 
     const shiftsPayload = {
       morning_hours: document.getElementById("tab_cfg_shift_morning_hours") ? document.getElementById("tab_cfg_shift_morning_hours").value.trim() : "06:00-14:00",
@@ -2737,13 +2767,15 @@
       if (data.success) {
         window.TAB_CLEAR_PASSWORD = false;
         window.TAB_CLEAR_TOKEN = false;
-        if (!silent) showToast("Link configuration saved successfully!");
+        const isBundle = document.getElementById("bundle_screenshots") && document.getElementById("bundle_screenshots").checked;
+        if (!silent) {
+          showToast(isBundle ? "Link saved & synced across ALL bundle tabs!" : "Link configuration saved successfully!");
+        }
         if (isNew && data.link && data.link.id) {
           ACTIVE_TAB_LINK_ID = data.link.id;
         }
-        if (!silent || isNew) {
-          await loadAndRenderSiteLinks();
-        }
+        await loadAndRenderSiteLinks();
+        await loadSites(true);
         fetchLogs();
         return true;
       } else {
@@ -2806,10 +2838,20 @@
       const res = await fetch(`/api/sites/${CURRENT_SITE_ID}/links/${linkId}/toggle`, { method: "POST" });
       const data = await res.json();
       if (data.success) {
-        showToast(data.enabled ? "Link monitoring enabled & initial capture triggered" : "Link monitoring paused");
-        const lk = CURRENT_SITE_LINKS.find(l => l.id === linkId);
-        if (lk) {
-          lk.enabled = data.enabled;
+        const isBundle = document.getElementById("bundle_screenshots") && document.getElementById("bundle_screenshots").checked;
+        if (isBundle) {
+          showToast(data.enabled ? "Bundle monitoring STARTED across ALL tabs!" : "Bundle monitoring PAUSED across ALL tabs!");
+          if (Array.isArray(CURRENT_SITE_LINKS)) {
+            CURRENT_SITE_LINKS.forEach(l => {
+              l.enabled = data.enabled;
+            });
+          }
+        } else {
+          showToast(data.enabled ? "Link monitoring enabled & initial capture triggered" : "Link monitoring paused");
+          const lk = CURRENT_SITE_LINKS.find(l => l.id === linkId);
+          if (lk) {
+            lk.enabled = data.enabled;
+          }
         }
         const hiddenEnabled = document.getElementById("tab_cfg_enabled");
         if (hiddenEnabled) hiddenEnabled.value = data.enabled ? "true" : "false";
@@ -3048,6 +3090,15 @@
     }
   }
 
+  async function onBundleToggleChange() {
+    const isChecked = document.getElementById("bundle_screenshots") ? document.getElementById("bundle_screenshots").checked : false;
+    showToast(isChecked 
+      ? "Bundle mode ON: All tabs will now synchronize cadence, message, and status." 
+      : "Bundle mode OFF: Tabs now operate with independent schedules.");
+    await saveCurrentSite(true);
+    await loadAndRenderSiteLinks();
+  }
+
   async function toggleCurrentSitePause() {
     if (!CURRENT_SITE_ID) return;
     try {
@@ -3056,6 +3107,7 @@
       if (data.success) {
         showToast(data.is_paused ? "Monitoring PAUSED for this site (other sites unaffected)" : "Monitoring STARTED for this site (other sites unaffected)");
         await loadSites(true);
+        await loadAndRenderSiteLinks();
       }
     } catch(e) {
       showToast("Failed to toggle site monitoring state", true);
@@ -3084,8 +3136,8 @@
         grafana_username: document.getElementById("grafana_username") ? document.getElementById("grafana_username").value.trim() : "",
         grafana_password: document.getElementById("grafana_password") ? document.getElementById("grafana_password").value.trim() : "",
         grafana_token: document.getElementById("grafana_token") ? document.getElementById("grafana_token").value.trim() : (currentSiteObj.grafana_token || ""),
-        slack_channel_id: document.getElementById("slack_channel_id") ? document.getElementById("slack_channel_id").value.trim() : "",
-        slack_thread_ts: document.getElementById("slack_thread_ts") ? document.getElementById("slack_thread_ts").value.trim() : "",
+        slack_channel_id: (document.getElementById("tab_cfg_channel") ? document.getElementById("tab_cfg_channel").value.trim() : "") || (document.getElementById("slack_channel_id") ? document.getElementById("slack_channel_id").value.trim() : ""),
+        slack_thread_ts: (document.getElementById("tab_cfg_thread") ? document.getElementById("tab_cfg_thread").value.trim() : "") || (document.getElementById("slack_thread_ts") ? document.getElementById("slack_thread_ts").value.trim() : ""),
         slack_message: (document.getElementById("tab_cfg_message") && document.getElementById("tab_cfg_message").value.trim()) || (document.getElementById("slack_message") ? document.getElementById("slack_message").value.trim() : ""),
         threshold_enabled: document.getElementById("threshold_enabled") ? document.getElementById("threshold_enabled").checked : false,
         threshold_metric_type: document.getElementById("threshold_metric_type") ? document.getElementById("threshold_metric_type").value : "row_count",
