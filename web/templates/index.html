@@ -2070,6 +2070,9 @@
                 <span id="tab-section-status-tag" class="cell-tag ${isEnabled ? 'tag-green' : 'tag-amber'}" style="font-size: 11px; padding: 4px 10px; font-weight: 700;">
                   ${isEnabled ? '● ACTIVE (MONITORED)' : '○ PAUSED'}
                 </span>
+                <button type="button" class="btn" onclick="toggleActiveTabLink('${lk.id}')" style="font-size: 11px; height: 26px; padding: 0 10px; font-weight: 700; cursor: pointer; border-radius: 4px; ${isEnabled ? 'background:#fff; border:1px solid #d97706; color:#b45309;' : 'background:#16a34a; border:none; color:#fff;'}" title="${isEnabled ? 'Pause automated monitoring for this tab' : 'Start automated monitoring for this tab'}">
+                  ${isEnabled ? 'Pause' : 'Start Monitoring'}
+                </button>
                 <input type="hidden" id="tab_cfg_enabled" value="${isEnabled ? 'true' : 'false'}">
               </div>
             </div>
@@ -2736,7 +2739,6 @@
       clear_token: !!window.TAB_CLEAR_TOKEN,
       interval_minutes: resolvedInt,
       time_range: document.getElementById("tab_cfg_timerange").value,
-      enabled: document.getElementById("tab_cfg_enabled") ? (document.getElementById("tab_cfg_enabled").value === "true") : true,
       threshold_enabled: document.getElementById("tab_cfg_thresh_enabled").checked,
       threshold_ai_mode: document.getElementById("tab_cfg_thresh_ai_mode") ? document.getElementById("tab_cfg_thresh_ai_mode").checked : false,
       threshold_ai_prompt: document.getElementById("tab_cfg_thresh_ai_prompt") ? document.getElementById("tab_cfg_thresh_ai_prompt").value.trim() : "",
@@ -2754,6 +2756,9 @@
       only_on_breach: document.getElementById("tab_cfg_only_breach").checked,
       shifts: shiftsPayload
     };
+    if (isNew) {
+      payload.enabled = true;
+    }
 
     try {
       const isNew = ACTIVE_TAB_LINK_ID === "new";

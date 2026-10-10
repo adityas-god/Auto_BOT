@@ -292,11 +292,16 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
 
     site_name = site.get("name", site_id)
     links = SiteManager.get_site_links(site_id, raw=True)
-    active_links = [lk for lk in links if lk.get("enabled", True) and (lk.get("url") or "").strip()]
+    active_links = [lk for lk in links if (lk.get("enabled", True) or force) and (lk.get("url") or "").strip()]
 
     if not active_links:
-        bot_log(f"[{site_name}] No active or configured monitored links with URLs for this site.", site_id=site_id)
-        return False, "No active enabled links"
+        has_urls = [lk for lk in links if (lk.get("url") or "").strip()]
+        if not has_urls:
+            bot_log(f"[{site_name}] No Grafana URLs configured for any monitored link tab. Please enter a URL first.", site_id=site_id)
+            return False, "No target URLs configured"
+        else:
+            bot_log(f"[{site_name}] All {len(has_urls)} monitored link(s) are currently PAUSED. Click 'Start All Bundle Tabs' to resume automated monitoring.", site_id=site_id)
+            return False, "All links paused"
 
     now_ts = time.time()
     tz = SiteManager.get_timezone()
