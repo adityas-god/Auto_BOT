@@ -2644,6 +2644,10 @@
     if (document.getElementById("interval_minutes")) {
       document.getElementById("interval_minutes").value = String(resolvedInt);
     }
+    const tabSlackMsg = document.getElementById("tab_cfg_message") ? document.getElementById("tab_cfg_message").value.trim() : "";
+    if (tabSlackMsg && document.getElementById("slack_message")) {
+      document.getElementById("slack_message").value = tabSlackMsg;
+    }
 
     const shiftsPayload = {
       morning_hours: document.getElementById("tab_cfg_shift_morning_hours") ? document.getElementById("tab_cfg_shift_morning_hours").value.trim() : "06:00-14:00",
@@ -3073,14 +3077,16 @@
       const payload = {
         name: document.getElementById("site_name") ? document.getElementById("site_name").value.trim() : "",
         bundle_screenshots: document.getElementById("bundle_screenshots") ? document.getElementById("bundle_screenshots").checked : false,
-        interval_minutes: document.getElementById("interval_minutes") ? document.getElementById("interval_minutes").value : "30",
+        interval_minutes: (document.getElementById("tab_cfg_interval") && document.getElementById("tab_cfg_interval").value !== "custom" 
+          ? document.getElementById("tab_cfg_interval").value 
+          : (document.getElementById("interval_minutes") ? document.getElementById("interval_minutes").value : "30")),
         grafana_url: document.getElementById("grafana_url") ? document.getElementById("grafana_url").value.trim() : "",
         grafana_username: document.getElementById("grafana_username") ? document.getElementById("grafana_username").value.trim() : "",
         grafana_password: document.getElementById("grafana_password") ? document.getElementById("grafana_password").value.trim() : "",
         grafana_token: document.getElementById("grafana_token") ? document.getElementById("grafana_token").value.trim() : (currentSiteObj.grafana_token || ""),
         slack_channel_id: document.getElementById("slack_channel_id") ? document.getElementById("slack_channel_id").value.trim() : "",
         slack_thread_ts: document.getElementById("slack_thread_ts") ? document.getElementById("slack_thread_ts").value.trim() : "",
-        slack_message: document.getElementById("slack_message") ? document.getElementById("slack_message").value.trim() : "",
+        slack_message: (document.getElementById("tab_cfg_message") && document.getElementById("tab_cfg_message").value.trim()) || (document.getElementById("slack_message") ? document.getElementById("slack_message").value.trim() : ""),
         threshold_enabled: document.getElementById("threshold_enabled") ? document.getElementById("threshold_enabled").checked : false,
         threshold_metric_type: document.getElementById("threshold_metric_type") ? document.getElementById("threshold_metric_type").value : "row_count",
         threshold_operator: document.getElementById("threshold_operator") ? document.getElementById("threshold_operator").value : ">",

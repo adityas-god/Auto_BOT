@@ -307,6 +307,19 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
     now_ts = time.time()
     tz = SiteManager.get_timezone()
     site_interval = max(1, safe_int(site.get("interval_minutes"), 30))
+    active_intervals = [safe_int(lk.get("interval_minutes"), 0) for lk in active_links if safe_int(lk.get("interval_minutes"), 0) > 0]
+    bundle_cadence = min(active_intervals) if active_intervals else site_interval
+
+    # Check if the bundled cycle is due
+    site_last_ts = safe_int(site.get("last_run_ts"), 0)
+    if not force and site_last_ts > 0 and (now_ts - site_last_ts) < (bundle_cadence * 60) - 5:
+        # Also check if all links were recently captured
+        all_recent = all(
+            (lk.get("last_run_ts") or 0) > 0 and (now_ts - (lk.get("last_run_ts") or 0)) < (bundle_cadence * 60) - 5
+            for lk in active_links
+        )
+        if all_recent:
+            return False, "Cadence interval not due yet"
 
     links_to_capture = []
     for lk in active_links:
@@ -314,13 +327,6 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
         run_key = f"{site_id}_{lk_id}"
         with ACTIVE_LINK_LOCK:
             if run_key in ACTIVE_LINK_RUNS:
-                continue
-        if not force:
-            lk_interval = safe_int(lk.get("interval_minutes"), 0)
-            if lk_interval <= 0:
-                lk_interval = site_interval
-            lk_last_ts = lk.get("last_run_ts") or 0
-            if lk_last_ts > 0 and (now_ts - lk_last_ts) < (lk_interval * 60) - 5:
                 continue
         links_to_capture.append(lk)
 
@@ -504,7 +510,17 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
 
         tag_mentions = (" ".join([f"<@{u}>" for u in all_breach_mentions]) + "\n") if (all_breach_mentions and channel_dests) else ""
 
-        template_msg = site.get("slack_message") or "*Grafana Snapshot Alert* - {datetime}"
+        # Determine message template: check links in this group first, then site fallback
+        link_template = ""
+        for it in group_items:
+            lk_msg = (it.get("link", {}).get("slack_message") or "").strip()
+            if lk_msg and lk_msg != "*Grafana Snapshot Alert* - {datetime}":
+                link_template = lk_msg
+                break
+        if not link_template and group_items:
+            link_template = (group_items[0].get("link", {}).get("slack_message") or "").strip()
+
+        template_msg = link_template or site.get("slack_message") or "*Grafana Snapshot Alert* - {datetime}"
         user_body = format_slack_message(
             template_msg,
             title=site_name,

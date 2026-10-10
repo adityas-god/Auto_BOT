@@ -126,28 +126,38 @@ def scheduler_loop():
 
                 links = SiteManager.get_site_links(s_id)
                 active_links = [lk for lk in links if lk.get("enabled", True) and lk.get("url")]
+                bundle_enabled = bool(site.get("bundle_screenshots", False))
                 site_interval = max(1, safe_int(site.get("interval_minutes"), 30))
+                active_intervals = [safe_int(lk.get("interval_minutes"), 0) for lk in active_links if safe_int(lk.get("interval_minutes"), 0) > 0]
+                effective_interval = min(active_intervals) if (bundle_enabled and active_intervals) else site_interval
 
                 if not active_links:
                     continue
 
                 is_due = False
-                for lk in active_links:
-                    lk_id = lk.get("id")
-                    run_key = f"{s_id}_{lk_id}"
-                    with ACTIVE_LINK_LOCK:
-                        if run_key in ACTIVE_LINK_RUNS:
-                            continue
-                    lk_interval = safe_int(lk.get("interval_minutes"), 0)
-                    if lk_interval <= 0:
-                        lk_interval = site_interval
-                    lk_last_ts = lk.get("last_run_ts") or 0
-                    if lk_last_ts <= 0:
+                if bundle_enabled:
+                    site_last_ts = safe_int(site.get("last_run_ts"), 0)
+                    if site_last_ts <= 0:
                         is_due = True
-                        break
-                    if (now_ts - lk_last_ts) >= (lk_interval * 60) - 5:
+                    elif (now_ts - site_last_ts) >= (effective_interval * 60) - 5:
                         is_due = True
-                        break
+                else:
+                    for lk in active_links:
+                        lk_id = lk.get("id")
+                        run_key = f"{s_id}_{lk_id}"
+                        with ACTIVE_LINK_LOCK:
+                            if run_key in ACTIVE_LINK_RUNS:
+                                continue
+                        lk_interval = safe_int(lk.get("interval_minutes"), 0)
+                        if lk_interval <= 0:
+                            lk_interval = site_interval
+                        lk_last_ts = lk.get("last_run_ts") or 0
+                        if lk_last_ts <= 0:
+                            is_due = True
+                            break
+                        if (now_ts - lk_last_ts) >= (lk_interval * 60) - 5:
+                            is_due = True
+                            break
 
                 if is_due and not s_state.get("is_running", False):
                     # Spawn dedicated worker thread for this site (Zero-conflict parallel execution)
