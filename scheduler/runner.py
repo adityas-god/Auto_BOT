@@ -13,7 +13,7 @@ from core.database import SiteManager
 from core.auth import resolve_link_auth
 from core.logger import bot_log
 from core.shifts import get_active_shift
-from core.utils import safe_int, apply_grafana_time_range, format_slack_message, get_current_time_str
+from core.utils import safe_int, safe_float, apply_grafana_time_range, format_slack_message, get_current_time_str
 from engines.grafana_capture import GrafanaCapture
 from engines.anomaly_engine import evaluate_threshold
 from engines.slack_notifier import SlackUploader
@@ -53,7 +53,7 @@ def run_link_capture_and_alert(site_id, link_id, force=False, caller_acquired_lo
     if lk_interval <= 0:
         lk_interval = max(1, safe_int(site.get("interval_minutes"), 30))
 
-    lk_last_ts = lk.get("last_run_ts") or 0
+    lk_last_ts = safe_float(lk.get("last_run_ts"), 0.0)
     if not force and lk_last_ts > 0:
         elapsed = now_ts - lk_last_ts
         if elapsed < (lk_interval * 60) - 5:
@@ -311,14 +311,10 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
     bundle_cadence = min(active_intervals) if active_intervals else site_interval
 
     # Check if the bundled cycle is due
-    site_last_ts = safe_int(site.get("last_run_ts"), 0)
-    if not force and site_last_ts > 0 and (now_ts - site_last_ts) < (bundle_cadence * 60) - 5:
-        # Also check if all links were recently captured
-        all_recent = all(
-            (lk.get("last_run_ts") or 0) > 0 and (now_ts - (lk.get("last_run_ts") or 0)) < (bundle_cadence * 60) - 5
-            for lk in active_links
-        )
-        if all_recent:
+    site_last_ts = safe_float(site.get("last_run_ts"), 0.0)
+    if not force and site_last_ts > 0:
+        elapsed = now_ts - site_last_ts
+        if elapsed < (bundle_cadence * 60) - 5:
             return False, "Cadence interval not due yet"
 
     links_to_capture = []
@@ -343,6 +339,14 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
 
     if not acquired_links:
         return False, "Already running"
+
+    # Immediately lock in site_last_ts so scheduler loop cannot double-trigger while in flight
+    SiteManager.record_site_run(
+        site_id=site_id,
+        last_run_time=get_current_time_str(tz_name=tz),
+        last_run_ts=now_ts,
+        last_status="Capturing..."
+    )
 
     captured_results = []
     overall_errors = []
@@ -589,13 +593,18 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
     _clean_temp_images(temp_images_to_clean)
 
     now_str = get_current_time_str(tz_name=tz)
+    end_ts = time.time()
     overall_status = f"Completed ({len(captured_results)} links bundled)" if not overall_errors else f"Warnings ({len(overall_errors)} links failed)"
     SiteManager.record_site_run(
         site_id=site_id,
         last_run_time=now_str,
-        last_run_ts=time.time(),
+        last_run_ts=end_ts,
         last_status=overall_status
     )
+    for res_item in captured_results:
+        lk_obj = res_item.get("link", {})
+        if lk_obj.get("id"):
+            SiteManager.update_site_link(site_id, lk_obj["id"], {"last_run_ts": end_ts}, log=False)
     return True, overall_status
 
 

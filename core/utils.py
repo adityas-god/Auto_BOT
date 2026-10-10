@@ -49,13 +49,27 @@ def _make_json_safe(obj):
         return str(obj)
 
 
-def safe_int(val, default):
+def safe_int(val, default=0):
     try:
         if val is None:
             return default
         s = str(val).strip()
-        return int(s) if s else default
-    except (ValueError, TypeError):
+        if not s:
+            return default
+        return int(float(s))
+    except (ValueError, TypeError, OverflowError):
+        return default
+
+
+def safe_float(val, default=0.0):
+    try:
+        if val is None:
+            return default
+        s = str(val).strip()
+        if not s:
+            return default
+        return float(s)
+    except (ValueError, TypeError, OverflowError):
         return default
 
 

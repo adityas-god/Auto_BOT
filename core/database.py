@@ -1322,7 +1322,7 @@ class SiteManager:
                 if is_bundle_site:
                     bot_log(f"[{site_name}] Dispatching bundled snapshot cycle for all enabled tabs...", site_id=site_id)
                     from scheduler.runner import run_site_bundle_capture_and_alert
-                    threading.Thread(target=run_site_bundle_capture_and_alert, args=(site_id, True, True), daemon=True).start()
+                    threading.Thread(target=run_site_bundle_capture_and_alert, args=(site_id, True), daemon=True).start()
                 else:
                     run_key = f"{site_id}_{link_id}"
                     with ACTIVE_LINK_LOCK:
