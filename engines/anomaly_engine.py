@@ -8,10 +8,12 @@ Evaluates extracted metrics against multi-layer anomaly criteria:
 5. Visual status warning colors (Red / Orange / Yellow)
 """
 
+import os
 import re
+from core.logger import bot_log
 
 
-def evaluate_threshold(extraction_data, threshold_cfg=None):
+def evaluate_threshold(extraction_data, threshold_cfg=None, image_path=None, global_settings=None, site_id=None):
     cfg = threshold_cfg or {}
     if not cfg.get("enabled", True):
         return {
@@ -25,6 +27,42 @@ def evaluate_threshold(extraction_data, threshold_cfg=None):
         }
 
     metric_type = cfg.get("metric_type", "row_count") or "row_count"
+    ai_mode = bool(cfg.get("ai_mode", False)) or (metric_type == "ai_prompt")
+    ai_prompt = str(cfg.get("ai_prompt") or "").strip()
+
+    # -----------------------------------------------------------------------
+    # AI VISION THRESHOLD MODE: Natural Language Prompt Evaluation
+    # When active, delegates to the dedicated AI Engine Service.
+    # Bypasses heavy local OCR & mathematical loops to reduce system load.
+    # -----------------------------------------------------------------------
+    if ai_mode and image_path and os.path.exists(image_path):
+        from ai_engine import get_ai_service
+        api_key = (global_settings or {}).get("gemini_api_key")
+        ai_service = get_ai_service()
+        ai_res = ai_service.evaluate_screenshot(
+            image_path=image_path,
+            threshold_prompt=ai_prompt,
+            api_key=api_key,
+            site_id=site_id
+        )
+        if ai_res.success:
+            breached = bool(ai_res.breached)
+            reasons = [ai_res.reason or "Threshold condition met"]
+            summary = ai_res.reason
+            primary_val = ai_res.reading
+            return {
+                "breached": breached,
+                "status": "BREACHED" if breached else "NORMAL",
+                "reasons": reasons,
+                "summary": summary,
+                "total_rows": 0,
+                "primary_val": primary_val,
+                "detected_colors": [],
+                "ocr_detected": 0,
+                "ai_evaluation": ai_res.to_dict()
+            }
+        else:
+            bot_log(f"[Threshold Engine] Prompt evaluation fallback: {ai_res.error}", site_id=site_id)
     op = cfg.get("operator", ">") or ">"
     val_str = str(cfg.get("value", "0")).strip()
     raw_kw = cfg.get("keywords", "") or ""

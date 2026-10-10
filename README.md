@@ -30,11 +30,17 @@ headless-bot/
 │   ├── utils.py                  # Proxy resolution, time range & formatting helpers
 │   ├── shifts.py                 # On-duty shift schedule evaluator (Morning, Afternoon, Night)
 │   └── auth.py                   # Grafana credential & session token resolution
+├── ai_engine/                    # Dedicated, extensible AI Visual Threshold Service
+│   ├── schemas.py                # Strongly-typed evaluation request & result models
+│   ├── prompt_templates.py       # SRE observability prompt builders
+│   ├── service.py                # AIEngineService orchestrator & singleton
+│   └── providers/                # Pluggable vision providers (Gemini, OpenAI, etc.)
 ├── engines/                      # Core automation & execution engines
 │   ├── grafana_capture.py        # Playwright headless Chromium screenshot & session engine
 │   ├── page_extractor.py         # Playwright DOM table, gauge, and badge extractor
 │   ├── ocr_engine.py             # Windows native OCR & Tesseract text extraction
-│   ├── anomaly_engine.py         # Sudden spike, cycle-over-cycle surge & keyword detector
+│   ├── anomaly_engine.py         # Anomaly detector integrating AI Service & rule engine
+│   ├── gemini_engine.py          # Backward-compatibility facade delegating to ai_engine
 │   └── slack_notifier.py         # Official 3-step Slack S3 uploader & 1-on-1 DM engine
 ├── scheduler/                    # Scheduling & worker daemon
 │   ├── runner.py                 # Individual link capture worker & alert pipeline

@@ -14,7 +14,7 @@ from core.config import ACTIVE_LINK_LOCK, ACTIVE_LINK_RUNS
 from core.database import SiteManager
 from core.logger import bot_log
 from core.utils import safe_int, get_current_time_str
-from scheduler.runner import run_link_capture_and_alert
+from scheduler.runner import run_link_capture_and_alert, run_site_bundle_capture_and_alert
 
 
 def execute_site_cycle(site_id, force_all=False):
@@ -42,11 +42,16 @@ def execute_site_cycle(site_id, force_all=False):
     try:
         SiteManager.set_site_state(site_id, is_running=True, last_status="Capturing...")
         links = SiteManager.get_site_links(site_id, raw=True)
-        active_links = [lk for lk in links if lk.get("enabled", True) and lk.get("url")]
+        active_links = [lk for lk in links if (lk.get("enabled", True) or force_all) and lk.get("url")]
 
         if not active_links:
             bot_log(f"[{site_name}] No active or enabled monitored links configured for this site. Monitoring standing by.", site_id=site_id)
             SiteManager.set_site_state(site_id, last_status="No Active Links", is_running=False)
+            return
+
+        bundle_enabled = bool(site.get("bundle_screenshots", False))
+        if bundle_enabled:
+            ok, msg = run_site_bundle_capture_and_alert(site_id, force=force_all)
             return
 
         now_ts = time.time()

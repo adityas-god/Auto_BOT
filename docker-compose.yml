@@ -12,6 +12,7 @@ services:
       - ./sites_runtime.json:/app/sites_runtime.json
       - ./grafana_auth_state.json:/app/grafana_auth_state.json
       - ./core:/app/core
+      - ./ai_engine:/app/ai_engine
       - ./engines:/app/engines
       - ./scheduler:/app/scheduler
       - ./web:/app/web

@@ -23,6 +23,7 @@ from core.config import (
     MONGO_SETTINGS_COLLECTION,
     ACTIVE_LINK_LOCK,
     ACTIVE_LINK_RUNS,
+    GEMINI_API_KEY,
     _PYMONGO_AVAILABLE,
 )
 from core.utils import safe_int, _make_json_safe, format_slack_message
@@ -89,7 +90,8 @@ class SiteManager:
             "viewport_width": safe_int(os.getenv("VIEWPORT_WIDTH"), 1920),
             "viewport_height": safe_int(os.getenv("VIEWPORT_HEIGHT"), 1080),
             "page_load_wait_seconds": safe_int(os.getenv("PAGE_LOAD_WAIT_SECONDS"), 8),
-            "grafana_theme": os.getenv("GRAFANA_THEME", "dark").strip() or "dark"
+            "grafana_theme": os.getenv("GRAFANA_THEME", "dark").strip() or "dark",
+            "gemini_api_key": os.getenv("GEMINI_API_KEY", "").strip() or GEMINI_API_KEY
         }
 
     @classmethod
@@ -99,6 +101,7 @@ class SiteManager:
             "name": "Site 1 (Primary)",
             "enabled": True,
             "paused": True,  # Strictly paused by default unless explicitly started
+            "bundle_screenshots": os.getenv("BUNDLE_SCREENSHOTS", "false").strip().lower() == "true",
             "interval_minutes": safe_int(os.getenv("SCHEDULE_INTERVAL_MINUTES"), 30),
             "grafana_url": os.getenv("GRAFANA_URL", "").strip(),
             "grafana_username": os.getenv("GRAFANA_USERNAME", "").strip(),
@@ -109,7 +112,9 @@ class SiteManager:
             "slack_message": (os.getenv("SLACK_MESSAGE") or os.getenv("SLACK_MESSAGE_TEMPLATE") or "*Grafana Snapshot Alert* - {datetime}").strip(),
             "threshold": {
                 "enabled": os.getenv("THRESHOLD_ENABLED", "true").strip().lower() == "true",
-                "metric_type": os.getenv("THRESHOLD_METRIC_TYPE", "row_count").strip() or "row_count",
+                "ai_mode": os.getenv("THRESHOLD_AI_MODE", "false").strip().lower() == "true",
+                "ai_prompt": os.getenv("THRESHOLD_AI_PROMPT", "").strip(),
+                "metric_type": os.getenv("THRESHOLD_METRIC_TYPE", "spike_jump").strip() or "spike_jump",
                 "operator": os.getenv("THRESHOLD_OPERATOR", ">").strip() or ">",
                 "value": os.getenv("THRESHOLD_VALUE", "0").strip() or "0",
                 "keywords": os.getenv("THRESHOLD_KEYWORDS", "").strip(),
@@ -251,7 +256,8 @@ class SiteManager:
                 defaults = cls._default_global_settings()
                 gs = cls._data.setdefault("global_settings", defaults)
                 for k, v in defaults.items():
-                    gs.setdefault(k, v)
+                    if not gs.get(k) and v:
+                        gs[k] = v
                 print(f"[STARTUP] Loaded {len(cls._data['sites'])} site(s) immediately from local storage.", flush=True)
             else:
                 cls._data = {
@@ -540,6 +546,7 @@ class SiteManager:
                 "VIEWPORT_HEIGHT": str(g.get("viewport_height", 1080)),
                 "PAGE_LOAD_WAIT_SECONDS": str(g.get("page_load_wait_seconds", 8)),
                 "GRAFANA_THEME": g.get("grafana_theme", "dark"),
+                "GEMINI_API_KEY": g.get("gemini_api_key", ""),
             }
             thresh = site1.get("threshold", {})
             env_map.update({
@@ -701,6 +708,8 @@ class SiteManager:
             gs = dict(cls._data.get("global_settings", cls._default_global_settings()))
             if not gs.get("slack_bot_token"):
                 gs["slack_bot_token"] = os.getenv("SLACK_BOT_TOKEN", "").strip()
+            if not gs.get("gemini_api_key"):
+                gs["gemini_api_key"] = os.getenv("GEMINI_API_KEY", "").strip() or GEMINI_API_KEY
             return _make_json_safe(gs)
 
     @classmethod
@@ -709,7 +718,7 @@ class SiteManager:
         with cls._lock:
             g = cls._data.setdefault("global_settings", cls._default_global_settings())
             for k, v in updates.items():
-                if k == "slack_bot_token" and str(v).startswith("••••"):
+                if k in ("slack_bot_token", "gemini_api_key") and str(v).startswith("••••"):
                     continue   # ignore placeholder from UI
                 g[k] = v
             result = _make_json_safe(dict(g))
@@ -851,10 +860,14 @@ class SiteManager:
                 if st:
                     st["is_paused"] = is_p
                     st["last_status"] = "Paused" if is_p else "Idle"
+            if "bundle_screenshots" in updates:
+                target["bundle_screenshots"] = bool(updates["bundle_screenshots"])
 
             thresh = target.setdefault("threshold", {})
             th_map = {
                 "threshold_enabled": ("enabled", bool),
+                "threshold_ai_mode": ("ai_mode", bool),
+                "threshold_ai_prompt": ("ai_prompt", str),
                 "threshold_metric_type": ("metric_type", str),
                 "threshold_operator": ("operator", str),
                 "threshold_value": ("value", str),
@@ -1009,6 +1022,8 @@ class SiteManager:
                         "only_on_breach": bool(link_data.get("only_on_breach", False)),
                         "threshold": {
                             "enabled": bool(link_data.get("threshold_enabled", True)),
+                            "ai_mode": bool(link_data.get("threshold_ai_mode", False)),
+                            "ai_prompt": str(link_data.get("threshold_ai_prompt") or "").strip(),
                             "metric_type": str(link_data.get("threshold_metric_type") or "spike_jump").strip(),
                             "operator": str(link_data.get("threshold_operator") or ">").strip(),
                             "value": str(link_data.get("threshold_value") or "20").strip(),
@@ -1106,6 +1121,8 @@ class SiteManager:
 
                     th = target.setdefault("threshold", {})
                     if "threshold_enabled" in updates: th["enabled"] = bool(updates["threshold_enabled"])
+                    if "threshold_ai_mode" in updates: th["ai_mode"] = bool(updates["threshold_ai_mode"])
+                    if "threshold_ai_prompt" in updates: th["ai_prompt"] = str(updates["threshold_ai_prompt"]).strip()
                     if "threshold_metric_type" in updates: th["metric_type"] = str(updates["threshold_metric_type"]).strip()
                     if "threshold_operator" in updates: th["operator"] = str(updates["threshold_operator"]).strip()
                     if "threshold_value" in updates: th["value"] = str(updates["threshold_value"]).strip()
@@ -1280,18 +1297,11 @@ class SiteManager:
                         else:
                             now_ts = time.time()
                             links = s.get("links", [])
-                            enabled_lks = [lk for lk in links if lk.get("enabled", True) and lk.get("url")]
-                            if not enabled_lks:
-                                first_lk = next((lk for lk in links if lk.get("url")), None)
-                                if first_lk:
-                                    first_lk["enabled"] = True
-                                    first_lk["last_run_ts"] = now_ts
-                                    target_link_to_run = first_lk["id"]
-                            elif len(enabled_lks) == 1:
-                                target_link_to_run = enabled_lks[0]["id"]
-                                enabled_lks[0]["last_run_ts"] = now_ts
-                            else:
-                                for lk in enabled_lks:
+                            has_any_enabled = any(lk.get("enabled", True) for lk in links if lk.get("url"))
+                            for lk in links:
+                                if lk.get("url"):
+                                    if not has_any_enabled:
+                                        lk["enabled"] = True
                                     lk["last_run_ts"] = now_ts
 
                             interval_sec = max(60, safe_int(s.get("interval_minutes"), 1) * 60)
@@ -1304,16 +1314,10 @@ class SiteManager:
             return False, "Site not found"
         bot_log(log_msg, site_id=site_id)
 
-        if not new_val and target_link_to_run:
-            run_key = f"{site_id}_{target_link_to_run}"
-            with ACTIVE_LINK_LOCK:
-                if run_key not in ACTIVE_LINK_RUNS:
-                    ACTIVE_LINK_RUNS.add(run_key)
-                    bot_log(f"[{site_name}] Start Monitoring activated: dispatching single instant snapshot for link tab...", site_id=site_id)
-                    from scheduler.runner import run_link_capture_and_alert
-                    threading.Thread(target=run_link_capture_and_alert, args=(site_id, target_link_to_run, True, True), daemon=True).start()
-                else:
-                    bot_log(f"[{site_name}] Link capture already in flight, skipping duplicate trigger.", site_id=site_id)
+        if not new_val:
+            from scheduler.scheduler import execute_site_cycle
+            bot_log(f"[{site_name}] Start Monitoring activated: initiating capture cycle across active site links...", site_id=site_id)
+            threading.Thread(target=execute_site_cycle, args=(site_id, True), daemon=True).start()
 
         return True, new_val
 

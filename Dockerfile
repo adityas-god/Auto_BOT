@@ -15,10 +15,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application source code and packages
 COPY main.py .
 COPY core/ ./core/
+COPY ai_engine/ ./ai_engine/
 COPY engines/ ./engines/
 COPY scheduler/ ./scheduler/
 COPY web/ ./web/
 COPY sites.json* .
+COPY sites_runtime.json* .
 COPY grafana_auth_state.json* .
 COPY .env.example .
 

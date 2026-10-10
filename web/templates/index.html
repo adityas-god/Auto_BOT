@@ -903,6 +903,11 @@
       </div>
 
       <div class="topbar-right">
+        <button type="button" class="btn btn-orange btn-topbar" id="btn-topbar-run" onclick="triggerCurrentSiteRun()" style="font-weight: 700; height: 32px; font-size: 11.5px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;" title="Trigger immediate capture cycle across all active tabs for this site">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          <span>Run Site Now</span>
+        </button>
+
         <button type="button" class="btn btn-topbar" id="btn-topbar-pause-toggle" onclick="toggleCurrentSitePause()" style="font-weight: 700; height: 32px; font-size: 11.5px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; background: #16a34a; border-color: #15803d; color: #fff; cursor: pointer;" title="Master switch: Start or Pause automated monitoring across all tabs in this site">
           <span id="topbar-pause-icon" style="display: inline-flex; align-items: center;">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
@@ -996,6 +1001,38 @@
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
               Save Site
             </button>
+          </div>
+
+          <!-- Multi-Link Slack Delivery Card (Single Message Bundle) -->
+          <div style="background: #ffffff; border: 2px solid var(--border-dark); box-shadow: var(--shadow-sm); border-radius: 8px; padding: 11px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <div style="width: 36px; height: 36px; border-radius: 8px; background: #fff7ed; border: 1.5px solid #fdba74; display: flex; align-items: center; justify-content: center; color: var(--primary-orange); flex-shrink: 0;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+              </div>
+              <div>
+                <div style="font-size: 13px; font-weight: 800; color: var(--text-dark); display: flex; align-items: center; gap: 8px;">
+                  <span>Bundle All Link Screenshots into 1 Slack Message</span>
+                  <span class="badge-subtle badge-orange-tag" style="font-size: 9px; padding: 1px 7px;">Multi-Attachment</span>
+                </div>
+                <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px; line-height: 1.4;">
+                  Uploads screenshots of all links under this site attached together in <strong>one single Slack message</strong> (gallery layout with "+2" attachments) instead of posting separate messages.
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+              <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; background: #fafaf9; border: 1.5px solid var(--border-light); padding: 6px 12px; border-radius: 6px;">
+                <input type="checkbox" id="bundle_screenshots" onchange="saveCurrentSite(true)" style="accent-color: var(--primary-orange); width: 18px; height: 18px; cursor: pointer;">
+                <span style="font-size: 11.5px; font-weight: 700; color: var(--text-dark);">Bundle in 1 Post</span>
+              </label>
+              <button type="button" class="btn btn-orange" id="btn-run-all-bundle" onclick="triggerCurrentSiteRun()" style="height: 33px; font-size: 11.5px; font-weight: 700; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px;" title="Capture all link tabs under this site now and deliver in 1 bundled Slack message">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                <span>Run All Links (Bundle Now)</span>
+              </button>
+            </div>
           </div>
           <input type="hidden" id="interval_minutes" value="30">
 
@@ -1151,6 +1188,18 @@
         <div class="input-box">
           <input type="text" id="global_slack_bot_token" name="global_tok_${Date.now()}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" class="input-field input-code secret-mask" placeholder="xoxb-••••••••••••••••">
           <button type="button" class="input-eye-btn" onclick="toggleVisibility('global_slack_bot_token')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+          </button>
+        </div>
+      </div>
+      <div class="form-field" style="margin-bottom: 12px;">
+        <label class="form-label" for="global_gemini_api_key">
+          <span>Visual Inspection API Key</span>
+          <span class="badge-subtle">Shared by all sites</span>
+        </label>
+        <div class="input-box">
+          <input type="text" id="global_gemini_api_key" name="global_gem_${Date.now()}" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" class="input-field input-code secret-mask" placeholder="••••••••••••••••">
+          <button type="button" class="input-eye-btn" onclick="toggleVisibility('global_gemini_api_key')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
           </button>
         </div>
@@ -1642,6 +1691,8 @@
 
     // Form inputs
     document.getElementById("site_name").value = site.name || "";
+    const bundleEl = document.getElementById("bundle_screenshots");
+    if (bundleEl) bundleEl.checked = !!site.bundle_screenshots;
     document.getElementById("interval_minutes").value = site.interval_minutes || 30;
     document.getElementById("grafana_url").value = site.grafana_url || "";
     document.getElementById("grafana_username").value = site.grafana_username || "";
@@ -1830,6 +1881,8 @@
     const th = lk.threshold || {};
     const isEnabled = lk.enabled !== false;
     const thEnabled = th.enabled !== false;
+    const aiMode = th.ai_mode === true;
+    const aiPrompt = th.ai_prompt || "";
     const mType = th.metric_type || "spike_jump";
     const op = th.operator || ">";
     const thVal = th.value !== undefined ? th.value : "20";
@@ -2154,56 +2207,73 @@
           </span>
         </div>
         <div class="link-section-body">
-          <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #52525b; cursor: pointer;">
+              <input type="checkbox" id="tab_cfg_thresh_ai_mode" ${aiMode ? 'checked' : ''} onchange="toggleAiModeThresholdView()" style="accent-color: var(--primary-orange);"> Custom Condition Rule
+            </label>
             <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #52525b; cursor: pointer;">
               <input type="checkbox" id="tab_cfg_thresh_enabled" ${thEnabled ? 'checked' : ''} style="accent-color: var(--primary-orange);"> Enable Anomaly Engine for this Link
             </label>
           </div>
 
-          <div class="field-row-3">
+          <!-- Prompt Rule View -->
+          <div id="ai_thresh_container" style="display: ${aiMode ? 'block' : 'none'}; margin-bottom: 8px;">
             <div class="form-field">
-              <label class="form-label" for="tab_cfg_metric_type">Metric Trigger Type</label>
-              <select id="tab_cfg_metric_type" class="input-field">
-                <option value="spike_jump" ${mType === 'spike_jump' ? 'selected' : ''}>Sudden Spike / Surge (% or Delta)</option>
-                <option value="number_val" ${mType === 'number_val' ? 'selected' : ''}>Numeric KPI / Gauge Ceiling</option>
-                <option value="row_count" ${mType === 'row_count' ? 'selected' : ''}>Table Row Count</option>
-                <option value="color_status" ${mType === 'color_status' ? 'selected' : ''}>Status Color (Red / Yellow)</option>
-                <option value="keyword" ${mType === 'keyword' ? 'selected' : ''}>Alert Keyword Match</option>
-                <option value="any" ${mType === 'any' ? 'selected' : ''}>Any Anomaly (All Combined)</option>
-              </select>
-            </div>
-            <div class="form-field">
-              <label class="form-label" for="tab_cfg_operator">Operator</label>
-              <select id="tab_cfg_operator" class="input-field">
-                <option value=">" ${op === '>' ? 'selected' : ''}>&gt; (Greater than)</option>
-                <option value=">=" ${op === '>=' ? 'selected' : ''}>&gt;= (Greater or equal)</option>
-                <option value="<" ${op === '<' ? 'selected' : ''}>&lt; (Less than)</option>
-                <option value="<=" ${op === '<=' ? 'selected' : ''}>&lt;= (Less or equal)</option>
-                <option value="==" ${op === '==' ? 'selected' : ''}>== (Equals)</option>
-                <option value="!=" ${op === '!=' ? 'selected' : ''}>!= (Not equals)</option>
-              </select>
-            </div>
-            <div class="form-field">
-              <label class="form-label" for="tab_cfg_value">
-                <span>Threshold Value</span>
-                <span class="badge-subtle">e.g. 20 for +20% surge</span>
+              <label class="form-label" for="tab_cfg_thresh_ai_prompt">
+                <span>Rule Condition</span>
+                <span class="badge-subtle">Visual Inspection</span>
               </label>
-              <input type="text" id="tab_cfg_value" class="input-field input-code" value="${escapeHtml(thVal !== undefined ? thVal : '20')}">
+              <textarea id="tab_cfg_thresh_ai_prompt" class="input-field input-code" rows="2" style="resize: vertical; font-size: 12px;" placeholder="e.g. Alert if any gauge exceeds 80% or if red error banner appears. Normal if all indicators are green.">${escapeHtml(aiPrompt)}</textarea>
             </div>
           </div>
 
-          <div class="field-row" style="margin-top: 8px;">
-            <div class="form-field">
-              <label class="form-label" for="tab_cfg_keywords">Alert Keywords (comma-separated)</label>
-              <input type="text" id="tab_cfg_keywords" class="input-field input-code" placeholder="e.g. error, critical, breach, failed" value="${escapeHtml(th.keywords || '')}">
+          <!-- Parameter Rules View -->
+          <div id="standard_thresh_container" style="display: ${aiMode ? 'none' : 'block'};">
+            <div class="field-row-3">
+              <div class="form-field">
+                <label class="form-label" for="tab_cfg_metric_type">Metric Trigger Type</label>
+                <select id="tab_cfg_metric_type" class="input-field">
+                  <option value="spike_jump" ${mType === 'spike_jump' ? 'selected' : ''}>Sudden Spike / Surge (% or Delta)</option>
+                  <option value="number_val" ${mType === 'number_val' ? 'selected' : ''}>Numeric KPI / Gauge Ceiling</option>
+                  <option value="row_count" ${mType === 'row_count' ? 'selected' : ''}>Table Row Count</option>
+                  <option value="color_status" ${mType === 'color_status' ? 'selected' : ''}>Status Color (Red / Yellow)</option>
+                  <option value="keyword" ${mType === 'keyword' ? 'selected' : ''}>Alert Keyword Match</option>
+                  <option value="any" ${mType === 'any' ? 'selected' : ''}>Any Anomaly (All Combined)</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="form-label" for="tab_cfg_operator">Operator</label>
+                <select id="tab_cfg_operator" class="input-field">
+                  <option value=">" ${op === '>' ? 'selected' : ''}>&gt; (Greater than)</option>
+                  <option value=">=" ${op === '>=' ? 'selected' : ''}>&gt;= (Greater or equal)</option>
+                  <option value="<" ${op === '<' ? 'selected' : ''}>&lt; (Less than)</option>
+                  <option value="<=" ${op === '<=' ? 'selected' : ''}>&lt;= (Less or equal)</option>
+                  <option value="==" ${op === '==' ? 'selected' : ''}>== (Equals)</option>
+                  <option value="!=" ${op === '!=' ? 'selected' : ''}>!= (Not equals)</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="form-label" for="tab_cfg_value">
+                  <span>Threshold Value</span>
+                  <span class="badge-subtle">e.g. 20 for +20% surge</span>
+                </label>
+                <input type="text" id="tab_cfg_value" class="input-field input-code" value="${escapeHtml(thVal !== undefined ? thVal : '20')}">
+              </div>
             </div>
-            <div class="form-field">
-              <label class="form-label" for="tab_cfg_colors">Trigger Colors</label>
-              <input type="text" id="tab_cfg_colors" class="input-field input-code" value="${escapeHtml(th.colors || 'red, orange, yellow')}">
+
+            <div class="field-row" style="margin-top: 8px;">
+              <div class="form-field">
+                <label class="form-label" for="tab_cfg_keywords">Alert Keywords (comma-separated)</label>
+                <input type="text" id="tab_cfg_keywords" class="input-field input-code" placeholder="e.g. error, critical, breach, failed" value="${escapeHtml(th.keywords || '')}">
+              </div>
+              <div class="form-field">
+                <label class="form-label" for="tab_cfg_colors">Trigger Colors</label>
+                <input type="text" id="tab_cfg_colors" class="input-field input-code" value="${escapeHtml(th.colors || 'red, orange, yellow')}">
+              </div>
             </div>
           </div>
 
-          <div class="form-field" style="margin-top: 8px;">
+          <div class="form-field" style="margin-top: 10px;">
             <label class="form-label" for="tab_cfg_breach_users">Always Tag People on Breach (Slack Member IDs)</label>
             <input type="text" id="tab_cfg_breach_users" class="input-field input-code" placeholder="e.g. U01234567, U08765432" value="${escapeHtml(th.breach_users || '')}">
           </div>
@@ -2617,6 +2687,8 @@
       time_range: document.getElementById("tab_cfg_timerange").value,
       enabled: document.getElementById("tab_cfg_enabled") ? (document.getElementById("tab_cfg_enabled").value === "true") : true,
       threshold_enabled: document.getElementById("tab_cfg_thresh_enabled").checked,
+      threshold_ai_mode: document.getElementById("tab_cfg_thresh_ai_mode") ? document.getElementById("tab_cfg_thresh_ai_mode").checked : false,
+      threshold_ai_prompt: document.getElementById("tab_cfg_thresh_ai_prompt") ? document.getElementById("tab_cfg_thresh_ai_prompt").value.trim() : "",
       threshold_metric_type: document.getElementById("tab_cfg_metric_type").value,
       threshold_operator: document.getElementById("tab_cfg_operator").value,
       threshold_value: document.getElementById("tab_cfg_value").value.trim(),
@@ -2983,6 +3055,7 @@
       const currentSiteObj = ALL_SITES.find(s => s.id === CURRENT_SITE_ID) || {};
       const payload = {
         name: document.getElementById("site_name") ? document.getElementById("site_name").value.trim() : "",
+        bundle_screenshots: document.getElementById("bundle_screenshots") ? document.getElementById("bundle_screenshots").checked : false,
         interval_minutes: document.getElementById("interval_minutes") ? document.getElementById("interval_minutes").value : "30",
         grafana_url: document.getElementById("grafana_url") ? document.getElementById("grafana_url").value.trim() : "",
         grafana_username: document.getElementById("grafana_username") ? document.getElementById("grafana_username").value.trim() : "",
@@ -3047,25 +3120,30 @@
 
   async function triggerCurrentSiteRun() {
     if (!CURRENT_SITE_ID) return;
-    // Auto-save form inputs first so any edited channel/credentials are applied
     await saveCurrentSite(true);
 
-    const btn = document.getElementById("btn-topbar-run");
-    let orig = "";
-    if (btn) {
-      btn.disabled = true;
-      orig = btn.innerHTML;
-      btn.innerHTML = "Running...";
-    }
+    const btns = [document.getElementById("btn-topbar-run"), document.getElementById("btn-run-all-bundle")].filter(Boolean);
+    const origMap = new Map();
+    btns.forEach(b => {
+      origMap.set(b, b.innerHTML);
+      b.disabled = true;
+      b.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg><span>Starting...</span>';
+    });
+
     try {
       const res = await fetch(`/api/sites/${CURRENT_SITE_ID}/trigger`, { method: "POST" });
       const data = await res.json();
-      if (data.success) showToast("Capture cycle triggered for active site!");
+      if (data.success) showToast(data.message || "Capture cycle triggered for active site!");
       else showToast("Run failed: " + data.error, true);
     } catch(e) {
       showToast("Unable to trigger execution", true);
     } finally {
-      if (btn) setTimeout(() => { btn.disabled = false; btn.innerHTML = orig; }, 2500);
+      setTimeout(() => {
+        btns.forEach(b => {
+          b.disabled = false;
+          b.innerHTML = origMap.get(b) || b.innerHTML;
+        });
+      }, 3000);
       loadSites(true);
     }
   }
@@ -3243,7 +3321,9 @@
         : `/api/sites/${CURRENT_SITE_ID}/preview-extracted-text`;
       const credentialsPayload = {
         username: document.getElementById("tab_cfg_username") ? document.getElementById("tab_cfg_username").value.trim() : "",
-        password: document.getElementById("tab_cfg_password") ? document.getElementById("tab_cfg_password").value.trim() : ""
+        password: document.getElementById("tab_cfg_password") ? document.getElementById("tab_cfg_password").value.trim() : "",
+        threshold_ai_mode: document.getElementById("tab_cfg_thresh_ai_mode") ? document.getElementById("tab_cfg_thresh_ai_mode").checked : false,
+        threshold_ai_prompt: document.getElementById("tab_cfg_thresh_ai_prompt") ? document.getElementById("tab_cfg_thresh_ai_prompt").value.trim() : ""
       };
       const res = await fetch(endpoint, {
         method: "POST",
@@ -3259,12 +3339,19 @@
         let statusBadge = ev.breached ? '<span class="cell-tag tag-red">THRESHOLD BREACHED</span>' : '<span class="cell-tag tag-green">NORMAL / ALL CLEAR</span>';
 
         let html = `
-          <div style="margin-bottom: 14px; padding: 12px; border: 2px solid var(--border-dark); border-radius: 4px; background: #faf8f5;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-              <strong style="font-family: 'Barlow Condensed'; font-size: 18px;">THRESHOLD EVALUATION: ${statusBadge}</strong>
+          <div style="margin-bottom: 14px; padding: 12px; border: 2px solid ${ev.breached ? '#fca5a5' : '#86efac'}; border-radius: 4px; background: ${ev.breached ? '#fef2f2' : '#f0fdf4'};">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+              <strong style="font-family: 'Barlow Condensed'; font-size: 18px; color: ${ev.breached ? '#dc2626' : '#15803d'};">THRESHOLD EVALUATION: ${statusBadge}</strong>
               <span style="font-size: 11px; font-weight: 700;">Link: ${escapeHtml(data.link_title || linkTitle)} | Shift: ${escapeHtml(shift.name || 'General')} (${escapeHtml(shift.hours || 'All-Day')})</span>
             </div>
-            <div style="font-size: 13px; color: #27272a;">${escapeHtml(ev.summary || 'No trigger condition met.')}</div>
+            <div style="font-size: 13px; color: #27272a; line-height: 1.4;">${escapeHtml(ev.summary || 'No trigger condition met.')}</div>
+            ${ev.ai_evaluation ? `
+              <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e4e4e7; display: flex; align-items: center; gap: 8px; font-size: 11px; color: #52525b; flex-wrap: wrap;">
+                <span class="badge-subtle">Visual Condition</span>
+                ${ev.primary_val ? `<span><b>Reading:</b> <code>${escapeHtml(String(ev.primary_val))}</code></span>` : ''}
+                ${ev.ai_evaluation.severity ? `<span class="badge-subtle" style="font-weight: 700; ${ev.ai_evaluation.severity === 'CRITICAL' ? 'color:#dc2626; border-color:#fca5a5;' : 'color:#15803d; border-color:#86efac;'}">${escapeHtml(ev.ai_evaluation.severity)}</span>` : ''}
+              </div>
+            ` : ''}
           </div>
         `;
 
@@ -3477,6 +3564,7 @@
         if (document.getElementById("global_timezone")) document.getElementById("global_timezone").value = data.settings.timezone || "Asia/Kolkata";
         if (document.getElementById("global_proxy")) document.getElementById("global_proxy").value = data.settings.http_proxy || "";
         if (document.getElementById("global_slack_bot_token")) document.getElementById("global_slack_bot_token").value = data.settings.slack_bot_token || "";
+        if (document.getElementById("global_gemini_api_key")) document.getElementById("global_gemini_api_key").value = data.settings.gemini_api_key || "";
       }
     } catch(e) {
       console.error("Failed to load global settings:", e);
@@ -3497,7 +3585,8 @@
     const payload = {
       timezone: document.getElementById("global_timezone") ? document.getElementById("global_timezone").value.trim() : "Asia/Kolkata",
       http_proxy: document.getElementById("global_proxy") ? document.getElementById("global_proxy").value.trim() : "",
-      slack_bot_token: document.getElementById("global_slack_bot_token") ? document.getElementById("global_slack_bot_token").value.trim() : ""
+      slack_bot_token: document.getElementById("global_slack_bot_token") ? document.getElementById("global_slack_bot_token").value.trim() : "",
+      gemini_api_key: document.getElementById("global_gemini_api_key") ? document.getElementById("global_gemini_api_key").value.trim() : ""
     };
     try {
       const res = await fetch("/api/global-settings", {
@@ -3521,6 +3610,15 @@
         btn.innerHTML = orig;
       }
     }
+  }
+
+  function toggleAiModeThresholdView() {
+    const aiCheck = document.getElementById("tab_cfg_thresh_ai_mode");
+    const aiBox = document.getElementById("ai_thresh_container");
+    const stdBox = document.getElementById("standard_thresh_container");
+    if (!aiCheck) return;
+    if (aiBox) aiBox.style.display = aiCheck.checked ? "block" : "none";
+    if (stdBox) stdBox.style.display = aiCheck.checked ? "none" : "block";
   }
 
   async function fetchLogs(animate = false) {

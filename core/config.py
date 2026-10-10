@@ -16,6 +16,10 @@ SITES_RUNTIME_PATH = os.path.join(BASE_DIR, "sites_runtime.json")
 
 if os.path.isdir(ENV_PATH):
     ENV_PATH = os.path.join(ENV_PATH, "settings.env")
+if os.path.isdir(SITES_RUNTIME_PATH):
+    SITES_RUNTIME_PATH = os.path.join(SITES_RUNTIME_PATH, "sites_runtime.json")
+if os.path.isdir(SITES_PATH):
+    SITES_PATH = os.path.join(SITES_PATH, "sites.json")
 
 if os.path.exists(ENV_PATH) and os.path.isfile(ENV_PATH):
     load_dotenv(dotenv_path=ENV_PATH, override=True)
@@ -28,6 +32,9 @@ MONGODB_URI = os.getenv(
 MONGO_DB_NAME = "operations_db"
 MONGO_SITES_COLLECTION = "opsbot_sites"
 MONGO_SETTINGS_COLLECTION = "opsbot_global_settings"
+
+# Gemini Vision AI configuration for natural language dashboard threshold evaluation
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
 
 # Global link concurrency control across all threads and sites
 ACTIVE_LINK_LOCK = threading.Lock()

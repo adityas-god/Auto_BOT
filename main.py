@@ -6,6 +6,7 @@ Main Entry Point & Modular Orchestrator.
 
 Architecture:
   - core/      : Base configuration, environment, database sync, logger & utilities.
+  - ai_engine/ : Dedicated, extensible AI visual threshold evaluation & provider subsystem.
   - engines/   : Headless Playwright capture, DOM extractor, OCR, anomaly engine & Slack uploader.
   - scheduler/ : Concurrent link execution, multi-site cycle orchestrator & scheduler daemon.
   - web/       : Flask Operations Center REST API server and modern web interface.
@@ -28,9 +29,10 @@ from core.database import SiteManager, Config
 from engines.ocr_engine import inspect_screenshot_pixels, run_ocr_on_screenshot, extract_numbers_from_text
 from engines.page_extractor import extract_page_data
 from engines.anomaly_engine import evaluate_threshold
+from ai_engine import get_ai_service, evaluate_screenshot as ai_evaluate_screenshot
 from engines.slack_notifier import SlackUploader
 from engines.grafana_capture import GrafanaCapture
-from scheduler.runner import run_link_capture_and_alert
+from scheduler.runner import run_link_capture_and_alert, run_site_bundle_capture_and_alert
 from scheduler.scheduler import execute_site_cycle, execute_cycle, scheduler_loop
 from web.ui_template import HTML_TEMPLATE
 from web.app import app, run_web_server, ensure_app_logo

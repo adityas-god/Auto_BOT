@@ -107,16 +107,35 @@ class SlackUploader:
         except Exception as e:
             return False, str(e)
 
-    def upload_screenshot(self, image_path, message_text=None, title=None, target_channel_id=None, thread_ts=None, skip_thread=False):
+    def upload_multiple_screenshots(self, items, message_text=None, target_channel_id=None, thread_ts=None, skip_thread=False):
+        """
+        Uploads multiple images to Slack in a SINGLE message with multiple attachments.
+        items: list of dicts: [{"path": "/path/to/img.png", "title": "Dashboard Title"}, ...]
+               or list of filepath strings: ["/path/to/img1.png", "/path/to/img2.png"]
+        """
         if not self.token:
             return False, "Slack Bot Token is missing."
         dest_channel = target_channel_id or self.channel_id
         if not dest_channel:
             return False, "Slack Channel ID is missing."
-        if not os.path.exists(image_path):
-            return False, f"File not found: {image_path}"
 
-        # If dest_channel is a Slack User Member ID (e.g. U... or W...), resolve to 1-on-1 DM channel
+        if not items:
+            return False, "No items provided for upload."
+
+        # Normalize items
+        norm_items = []
+        if isinstance(items, (str, bytes)):
+            items = [items]
+        for it in items:
+            if isinstance(it, str):
+                norm_items.append({"path": it, "title": None})
+            elif isinstance(it, dict) and it.get("path"):
+                norm_items.append(it)
+
+        valid_items = [it for it in norm_items if os.path.exists(it["path"])]
+        if not valid_items:
+            return False, "No valid image files exist on disk for upload."
+
         clean_dest = re.sub(r"[<@>#\s]", "", str(dest_channel).strip())
         if clean_dest.startswith(("U", "W")):
             dm_chan, dm_err = self.open_dm_channel(clean_dest)
@@ -125,54 +144,65 @@ class SlackUploader:
             dest_channel = dm_chan
             skip_thread = True
 
-        filename = os.path.basename(image_path)
-        file_size = os.path.getsize(image_path)
+        uploaded_files = []
+        for it in valid_items:
+            image_path = it["path"]
+            filename = os.path.basename(image_path)
+            file_size = os.path.getsize(image_path)
+            file_title = it.get("title") or f"Grafana Snapshot ({filename})"
+
+            try:
+                # Step 1: Request S3 upload URL
+                resp1 = requests.get(
+                    "https://slack.com/api/files.getUploadURLExternal",
+                    headers=self.headers,
+                    params={"filename": filename, "length": file_size},
+                    timeout=20
+                )
+                data1 = resp1.json()
+                if not data1.get("ok"):
+                    err1 = data1.get("error", "Unknown error")
+                    if err1 == "missing_scope":
+                        return False, "Slack Bot Token is missing the required 'files:write' scope."
+                    return False, f"Slack getUploadURL failed for '{filename}': {err1}"
+
+                upload_url = data1["upload_url"]
+                file_id = data1["file_id"]
+
+                # Step 2: Upload file bytes directly to Slack S3
+                with open(image_path, "rb") as f:
+                    file_bytes = f.read()
+
+                resp2 = requests.post(
+                    upload_url,
+                    data=file_bytes,
+                    headers={"Content-Type": "application/octet-stream"},
+                    timeout=60
+                )
+                if resp2.status_code not in (200, 201, 204):
+                    return False, f"Slack S3 upload failed for '{filename}' (HTTP {resp2.status_code})"
+
+                uploaded_files.append({"id": file_id, "title": file_title})
+            except Exception as e:
+                return False, f"Failed uploading '{filename}' to Slack: {e}"
+
+        if not uploaded_files:
+            return False, "No files could be uploaded to Slack."
+
+        # Step 3: Complete upload and share all files in a single post
         comment = message_text or "*Grafana Snapshot Alert*"
-        file_title = title or f"Grafana Snapshot ({filename})"
+        complete_payload = {
+            "files": uploaded_files,
+            "channel_id": dest_channel,
+            "initial_comment": comment
+        }
+        effective_thread = thread_ts or (self.thread_ts if not skip_thread else None)
+        if effective_thread and not skip_thread:
+            clean_thread = clean_slack_thread_ts(effective_thread)
+            if clean_thread:
+                complete_payload["thread_ts"] = clean_thread
 
         try:
-            # Step 1: Request S3 upload URL
-            resp1 = requests.get(
-                "https://slack.com/api/files.getUploadURLExternal",
-                headers=self.headers,
-                params={"filename": filename, "length": file_size},
-                timeout=20
-            )
-            data1 = resp1.json()
-            if not data1.get("ok"):
-                err1 = data1.get("error", "Unknown error")
-                if err1 == "missing_scope":
-                    return False, "Slack Bot Token is missing the required 'files:write' scope."
-                return False, f"Slack getUploadURL failed: {err1}"
-
-            upload_url = data1["upload_url"]
-            file_id = data1["file_id"]
-
-            # Step 2: Upload file bytes directly to Slack S3
-            with open(image_path, "rb") as f:
-                file_bytes = f.read()
-
-            resp2 = requests.post(
-                upload_url,
-                data=file_bytes,
-                headers={"Content-Type": "application/octet-stream"},
-                timeout=60
-            )
-            if resp2.status_code not in (200, 201, 204):
-                return False, f"Slack S3 upload failed (HTTP {resp2.status_code})"
-
-            # Step 3: Complete upload and share to channel or DM
-            complete_payload = {
-                "files": [{"id": file_id, "title": file_title}],
-                "channel_id": dest_channel,
-                "initial_comment": comment
-            }
-            effective_thread = thread_ts or (self.thread_ts if not skip_thread else None)
-            if effective_thread and not skip_thread:
-                clean_thread = clean_slack_thread_ts(effective_thread)
-                if clean_thread:
-                    complete_payload["thread_ts"] = clean_thread
-
             resp3 = requests.post(
                 "https://slack.com/api/files.completeUploadExternal",
                 headers={**self.headers, "Content-Type": "application/json; charset=utf-8"},
@@ -191,6 +221,15 @@ class SlackUploader:
             return False, f"Slack Complete Upload failed: {err3}"
         except Exception as e:
             return False, str(e)
+
+    def upload_screenshot(self, image_path, message_text=None, title=None, target_channel_id=None, thread_ts=None, skip_thread=False):
+        return self.upload_multiple_screenshots(
+            items=[{"path": image_path, "title": title}],
+            message_text=message_text,
+            target_channel_id=target_channel_id,
+            thread_ts=thread_ts,
+            skip_thread=skip_thread
+        )
 
     def open_dm_channel(self, user_id):
         raw = str(user_id or "").strip()
@@ -222,15 +261,22 @@ class SlackUploader:
         except Exception as e:
             return None, str(e)
 
-    def send_dm_snapshot(self, user_id, image_path, message_text=None):
+    def send_dm_multiple_snapshots(self, user_id, items, message_text=None):
         dm_chan, err = self.open_dm_channel(user_id)
         if not dm_chan:
             return False, f"Could not open DM channel with {user_id}: {err}"
-        return self.upload_screenshot(
-            image_path=image_path,
+        return self.upload_multiple_screenshots(
+            items=items,
             message_text=message_text,
             target_channel_id=dm_chan,
             skip_thread=True
+        )
+
+    def send_dm_snapshot(self, user_id, image_path, message_text=None):
+        return self.send_dm_multiple_snapshots(
+            user_id=user_id,
+            items=[{"path": image_path, "title": None}],
+            message_text=message_text
         )
 
     def send_dm_text(self, user_id, message_text):

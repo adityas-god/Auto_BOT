@@ -328,28 +328,44 @@ def preview_site_extracted_text(site_id=None, link_id=None):
             url = apply_grafana_time_range(url, time_range)
         user, pwd, tok = resolve_link_auth(site, target_link, target_url=url)
         target_title = target_link.get("title", "Link")
-        th_cfg = target_link.get("threshold") or site.get("threshold", {})
+        th_cfg = dict(target_link.get("threshold") or site.get("threshold", {}))
         shifts_cfg = target_link.get("shifts") or site.get("shifts", {})
     else:
         user, pwd, tok = resolve_link_auth(site, None, target_url=url)
         target_title = site.get("name", "Site")
-        th_cfg = site.get("threshold", {})
+        th_cfg = dict(site.get("threshold", {}))
         shifts_cfg = site.get("shifts", {})
+
+    if "threshold_ai_mode" in req_json:
+        th_cfg["ai_mode"] = bool(req_json["threshold_ai_mode"])
+    if "threshold_ai_prompt" in req_json:
+        th_cfg["ai_prompt"] = str(req_json["threshold_ai_prompt"]).strip()
 
     if not url:
         return jsonify({"success": False, "error": "No Grafana URL or monitored links configured."}), 400
 
     bot_log(f"[INFO] Dashboard data extraction request for '{site.get('name')} -> {target_title}'...", site_id=effective_site_id)
+    temp_img = None
     try:
         capture = GrafanaCapture(site_dict=site)
+        temp_img = os.path.join(tempfile.gettempdir(), f"preview_eval_{int(time.time() * 1000)}.png")
         with GLOBAL_CAPTURE_SEMAPHORE:
-            extraction = capture.extract_dashboard_data(
+            output_path, extraction = capture.capture_screenshot(
                 target_url=url,
+                output_path=temp_img,
                 username=user,
                 password=pwd,
-                token=tok
+                token=tok,
+                return_extracted=True
             )
-        eval_res = evaluate_threshold(extraction, th_cfg)
+        g_settings = SiteManager.get_global_settings()
+        eval_res = evaluate_threshold(
+            extraction,
+            threshold_cfg=th_cfg,
+            image_path=output_path,
+            global_settings=g_settings,
+            site_id=effective_site_id
+        )
         active_shift = get_active_shift(shifts_cfg, SiteManager.get_timezone())
 
         return jsonify({
@@ -362,6 +378,12 @@ def preview_site_extracted_text(site_id=None, link_id=None):
     except Exception as e:
         bot_log(f"[ERROR] [{site.get('name')} -> {target_title}] Extraction failed: {e}", site_id=effective_site_id)
         return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        if temp_img and os.path.exists(temp_img):
+            try:
+                os.remove(temp_img)
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -509,7 +531,17 @@ def handle_global_settings():
     actual_tok = g.get("slack_bot_token", "")
     g["slack_bot_token_set"] = bool(actual_tok)
     g["slack_bot_token"] = actual_tok
+    actual_gem = g.get("gemini_api_key", "")
+    g["gemini_api_key_set"] = bool(actual_gem)
+    g["gemini_api_key"] = actual_gem
     return jsonify({"success": True, "settings": g})
+
+
+@app.route("/api/ai/status", methods=["GET"])
+def get_ai_engine_status():
+    from ai_engine import get_ai_service
+    svc = get_ai_service()
+    return jsonify({"success": True, "ai_engine": svc.get_service_status()})
 
 
 @app.route("/api/logs", methods=["GET"])
