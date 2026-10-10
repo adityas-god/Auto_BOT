@@ -103,17 +103,26 @@ def run_link_capture_and_alert(site_id, link_id, force=False, caller_acquired_lo
 
         size_kb = os.path.getsize(lk_image) / 1024
         g_settings = SiteManager.get_global_settings()
-        eval_res = evaluate_threshold(
-            extraction,
-            threshold_cfg=lk_threshold,
-            image_path=lk_image,
-            global_settings=g_settings,
-            site_id=site_id
-        )
+        lk_thresh_enabled = bool(lk_threshold.get("enabled", True))
+        if not lk_thresh_enabled:
+            eval_res = {
+                "breached": False,
+                "status": "DISABLED",
+                "summary": "AI/Threshold detection disabled",
+                "reasons": []
+            }
+        else:
+            eval_res = evaluate_threshold(
+                extraction,
+                threshold_cfg=lk_threshold,
+                image_path=lk_image,
+                global_settings=g_settings,
+                site_id=site_id
+            )
 
         now_str = get_current_time_str(tz_name=tz)
         state_up = {
-            "last_status": "Normal" if eval_res["status"] == "NORMAL" else "Anomaly Detected",
+            "last_status": "Captured" if not lk_thresh_enabled else ("Normal" if eval_res["status"] == "NORMAL" else "Anomaly Detected"),
             "last_run_time": now_str,
             "last_run_ts": now_ts
         }
@@ -121,7 +130,10 @@ def run_link_capture_and_alert(site_id, link_id, force=False, caller_acquired_lo
             state_up["last_reading"] = eval_res["primary_val"]
         SiteManager.update_site_link(site_id, link_id, state_up, log=False)
 
-        bot_log(f"[{site_name} -> {lk_title}] Snapshot captured ({size_kb:.1f} KB). Status: [{eval_res['status']}] - {eval_res['summary']}", site_id=site_id)
+        if not lk_thresh_enabled:
+            bot_log(f"[{site_name} -> {lk_title}] Snapshot captured ({size_kb:.1f} KB). AI/Threshold detection is OFF (simple post).", site_id=site_id)
+        else:
+            bot_log(f"[{site_name} -> {lk_title}] Snapshot captured ({size_kb:.1f} KB). Status: [{eval_res['status']}] - {eval_res['summary']}", site_id=site_id)
 
         only_on_breach = lk.get("only_on_breach", False) or lk_threshold.get("only_alert_on_breach", False)
         if only_on_breach and not eval_res["breached"]:
@@ -188,7 +200,7 @@ def run_link_capture_and_alert(site_id, link_id, force=False, caller_acquired_lo
             trigger=eval_res.get("summary", ""),
             shift=active_shift.get("name", "")
         )
-        if eval_res.get("ai_evaluation") and eval_res.get("summary"):
+        if eval_res.get("breached") and eval_res.get("ai_evaluation") and eval_res.get("summary"):
             ai_sum = eval_res["summary"].replace("[AI Vision] ", "")
             if "{trigger}" not in template_msg and ai_sum not in user_body:
                 user_body += f"\n> *Trigger Details:* {ai_sum}"
@@ -367,17 +379,26 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
                 temp_images_to_clean.append(lk_image)
                 size_kb = os.path.getsize(lk_image) / 1024
                 g_settings = SiteManager.get_global_settings()
-                eval_res = evaluate_threshold(
-                    extraction,
-                    threshold_cfg=lk_threshold,
-                    image_path=lk_image,
-                    global_settings=g_settings,
-                    site_id=site_id
-                )
+                lk_thresh_enabled = bool(lk_threshold.get("enabled", True))
+                if not lk_thresh_enabled:
+                    eval_res = {
+                        "breached": False,
+                        "status": "DISABLED",
+                        "summary": "AI/Threshold detection disabled",
+                        "reasons": []
+                    }
+                else:
+                    eval_res = evaluate_threshold(
+                        extraction,
+                        threshold_cfg=lk_threshold,
+                        image_path=lk_image,
+                        global_settings=g_settings,
+                        site_id=site_id
+                    )
 
                 now_str = get_current_time_str(tz_name=tz)
                 state_up = {
-                    "last_status": "Normal" if eval_res["status"] == "NORMAL" else "Anomaly Detected",
+                    "last_status": "Captured" if not lk_thresh_enabled else ("Normal" if eval_res["status"] == "NORMAL" else "Anomaly Detected"),
                     "last_run_time": now_str,
                     "last_run_ts": now_ts
                 }
@@ -385,7 +406,10 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
                     state_up["last_reading"] = eval_res["primary_val"]
                 SiteManager.update_site_link(site_id, lk_id, state_up, log=False)
 
-                bot_log(f"[{site_name} -> {lk_title}] Snapshot captured ({size_kb:.1f} KB). Status: [{eval_res['status']}] - {eval_res['summary']}", site_id=site_id)
+                if not lk_thresh_enabled:
+                    bot_log(f"[{site_name} -> {lk_title}] Snapshot captured ({size_kb:.1f} KB). AI/Threshold detection is OFF (simple post).", site_id=site_id)
+                else:
+                    bot_log(f"[{site_name} -> {lk_title}] Snapshot captured ({size_kb:.1f} KB). Status: [{eval_res['status']}] - {eval_res['summary']}", site_id=site_id)
 
                 only_on_breach = lk.get("only_on_breach", False) or lk_threshold.get("only_alert_on_breach", False)
 
@@ -489,16 +513,16 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
             shift=active_shift.get("name", "")
         )
 
-        if len(group_items) > 1 and "{trigger}" not in template_msg:
+        # Only append anomaly summaries if an actual breach occurred
+        # If AI/Anomaly detection is OFF or all dashboards are normal, simply post the message cleanly
+        if any_breach and "{trigger}" not in template_msg:
             tab_summaries = []
             for it in group_items:
-                stat_badge = "⚠️ Anomaly" if it["breached"] else "✅ Normal"
-                sm = it["eval_res"].get("summary", "")
-                if it["breached"] and sm:
-                    tab_summaries.append(f"• *{it['title']}*: {stat_badge} ({sm})")
-                else:
-                    tab_summaries.append(f"• *{it['title']}*: {stat_badge}")
-            user_body += "\n" + "\n".join(tab_summaries)
+                if it.get("breached"):
+                    sm = it["eval_res"].get("summary", "")
+                    tab_summaries.append(f"• *{it['title']}*: ⚠️ Anomaly ({sm})" if sm else f"• *{it['title']}*: ⚠️ Anomaly")
+            if tab_summaries:
+                user_body += "\n" + "\n".join(tab_summaries)
 
         formatted_msg = (tag_mentions + user_body).strip()
 

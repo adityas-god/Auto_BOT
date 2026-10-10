@@ -2207,15 +2207,31 @@
           </span>
         </div>
         <div class="link-section-body">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #52525b; cursor: pointer;">
-              <input type="checkbox" id="tab_cfg_thresh_ai_mode" ${aiMode ? 'checked' : ''} onchange="toggleAiModeThresholdView()" style="accent-color: var(--primary-orange);"> Custom Condition Rule
-            </label>
-            <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #52525b; cursor: pointer;">
-              <input type="checkbox" id="tab_cfg_thresh_enabled" ${thEnabled ? 'checked' : ''} style="accent-color: var(--primary-orange);"> Enable Anomaly Engine for this Link
-            </label>
+          <!-- Master AI & Anomaly Detection Switch -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 10px 14px; background: #fafaf9; border-radius: 8px; border: 1.5px solid var(--border-light);">
+            <div>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; color: var(--text-dark); cursor: pointer; user-select: none;">
+                <input type="checkbox" id="tab_cfg_thresh_enabled" ${thEnabled ? 'checked' : ''} onchange="toggleThresholdMasterView()" style="accent-color: var(--primary-orange); width: 18px; height: 18px; cursor: pointer;">
+                <span>AI &amp; Anomaly Detection</span>
+                <span class="badge-subtle badge-orange-tag" style="font-size: 9px; padding: 1px 7px;">Automated SRE Inspection</span>
+              </label>
+              <div style="font-size: 11px; color: #78716c; margin-top: 3px; line-height: 1.4;">
+                When enabled, the bot inspects snapshots for breaches or anomalies. When <b>OFF</b>, the bot simply captures and posts the image without any analysis.
+              </div>
+            </div>
+            <div id="ai_mode_toggle_wrap" style="display: ${thEnabled ? 'flex' : 'none'}; align-items: center; gap: 8px; flex-shrink: 0;">
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: #52525b; cursor: pointer; user-select: none; background: #ffffff; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border-light);">
+                <input type="checkbox" id="tab_cfg_thresh_ai_mode" ${aiMode ? 'checked' : ''} onchange="toggleAiModeThresholdView()" style="accent-color: var(--primary-orange); cursor: pointer;">
+                <span>Natural Language Prompt</span>
+              </label>
+            </div>
           </div>
 
+          <div id="thresh_disabled_notice" style="display: ${thEnabled ? 'none' : 'block'}; padding: 12px 14px; background: #f8fafc; border-radius: 8px; font-size: 11.5px; color: #64748b; border: 1.5px dashed #cbd5e1; margin-bottom: 8px;">
+            ⚡ <b>AI &amp; Anomaly Detection is OFF:</b> Snapshots for this link will simply be captured and posted to Slack as-is. No AI vision models, OCR text scanning, or sudden surge calculations will run.
+          </div>
+
+          <div id="thresh_rules_container" style="display: ${thEnabled ? 'block' : 'none'};">
           <!-- Prompt Rule View -->
           <div id="ai_thresh_container" style="display: ${aiMode ? 'block' : 'none'}; margin-bottom: 8px;">
             <div class="form-field">
@@ -2276,6 +2292,7 @@
           <div class="form-field" style="margin-top: 10px;">
             <label class="form-label" for="tab_cfg_breach_users">Always Tag People on Breach (Slack Member IDs)</label>
             <input type="text" id="tab_cfg_breach_users" class="input-field input-code" placeholder="e.g. U01234567, U08765432" value="${escapeHtml(th.breach_users || '')}">
+          </div>
           </div>
         </div>
       </div>
@@ -3610,6 +3627,17 @@
         btn.innerHTML = orig;
       }
     }
+  }
+
+  function toggleThresholdMasterView() {
+    const en = document.getElementById("tab_cfg_thresh_enabled");
+    const isEn = en ? en.checked : false;
+    const wrap = document.getElementById("ai_mode_toggle_wrap");
+    const rules = document.getElementById("thresh_rules_container");
+    const notice = document.getElementById("thresh_disabled_notice");
+    if (wrap) wrap.style.display = isEn ? "flex" : "none";
+    if (rules) rules.style.display = isEn ? "block" : "none";
+    if (notice) notice.style.display = isEn ? "none" : "block";
   }
 
   function toggleAiModeThresholdView() {

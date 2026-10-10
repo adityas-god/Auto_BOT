@@ -346,7 +346,7 @@
           "username": "Gor",
           "password": "Gorgraphana@123",
           "token": "",
-          "enabled": false,
+          "enabled": true,
           "slack_channel_id": "U0BJ1CP982V",
           "slack_thread_ts": "",
           "slack_message": "Last 30  MINS",
@@ -354,7 +354,7 @@
           "send_dm": true,
           "only_on_breach": false,
           "threshold": {
-            "enabled": true,
+            "enabled": false,
             "ai_mode": false,
             "ai_prompt": "",
             "metric_type": "number_val",
@@ -370,7 +370,7 @@
           "last_reading": "All metrics green / nominal",
           "last_run_time": "2026-10-11 00:02:48",
           "last_run_ts": 1791657132.4850178,
-          "last_status": "Paused",
+          "last_status": "Success",
           "shifts": {
             "morning_hours": "06:00-14:00",
             "morning_users": "",
@@ -391,7 +391,7 @@
           "token": "",
           "interval_minutes": 60,
           "time_range": "url_default",
-          "enabled": false,
+          "enabled": true,
           "slack_channel_id": "U0BJ1CP982V",
           "slack_thread_ts": "",
           "slack_message": "LAST 30 MINS",
@@ -399,7 +399,7 @@
           "send_dm": true,
           "only_on_breach": false,
           "threshold": {
-            "enabled": true,
+            "enabled": false,
             "ai_mode": false,
             "ai_prompt": "",
             "metric_type": "spike_jump",
@@ -423,7 +423,7 @@
           "last_reading": 145.0,
           "last_run_time": "2026-10-11 00:03:15",
           "last_run_ts": 1791657132.4850178,
-          "last_status": "Paused"
+          "last_status": "Success"
         },
         {
           "id": "link_1791655939659",
@@ -434,7 +434,7 @@
           "token": "",
           "interval_minutes": 60,
           "time_range": "url_default",
-          "enabled": false,
+          "enabled": true,
           "slack_channel_id": "U0BJ1CP982V",
           "slack_thread_ts": "",
           "slack_message": "LAST 30 MINS",
@@ -442,7 +442,7 @@
           "send_dm": true,
           "only_on_breach": false,
           "threshold": {
-            "enabled": true,
+            "enabled": false,
             "ai_mode": false,
             "ai_prompt": "",
             "metric_type": "spike_jump",
