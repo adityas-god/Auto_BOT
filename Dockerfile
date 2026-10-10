@@ -20,7 +20,6 @@ COPY engines/ ./engines/
 COPY scheduler/ ./scheduler/
 COPY web/ ./web/
 COPY sites.json* .
-COPY sites_runtime.json* .
 COPY grafana_auth_state.json* .
 COPY .env.example .
 

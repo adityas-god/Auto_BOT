@@ -62,7 +62,20 @@ jobs:
           echo "📁 Deploying in: $(pwd)"
           git fetch origin main || true
           git reset --hard origin/main || git pull origin main
+
+          # Prevent OCI runtime directory-vs-file mount collisions
+          # Clean up any stale directory placeholders created by previous Docker runs
+          [ -d sites_runtime.json ] && rm -rf sites_runtime.json
+          [ -d grafana_auth_state.json ] && rm -rf grafana_auth_state.json
+          [ -d .env ] && rm -rf .env
+
+          # Ensure host mount targets exist as regular files before container start
           [ -f .env ] || cp .env.example .env
-          docker compose up -d --build
+          [ -f sites.json ] || git checkout sites.json 2>/dev/null || echo '{"sites":[]}' > sites.json
+          [ -f grafana_auth_state.json ] || echo "{}" > grafana_auth_state.json
+
+          # Recreate container cleanly
+          docker compose down || true
+          docker compose up -d --build --force-recreate
           echo "✅ Deployment complete! Container status:"
           docker ps
