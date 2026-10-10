@@ -63,16 +63,25 @@ jobs:
           git fetch origin main || true
           git reset --hard origin/main || git pull origin main
 
+          # Reclaim ownership of any root-owned files created by previous Docker runs
+          sudo chown -R $(id -u):$(id -g) . 2>/dev/null || docker run --rm -v "$(pwd):/work" -w /work mcr.microsoft.com/playwright/python:v1.40.0-jammy chown -R $(id -u):$(id -g) . 2>/dev/null || true
+
           # Prevent OCI runtime directory-vs-file mount collisions
           # Clean up any stale directory placeholders created by previous Docker runs
-          [ -d sites_runtime.json ] && rm -rf sites_runtime.json
-          [ -d grafana_auth_state.json ] && rm -rf grafana_auth_state.json
-          [ -d .env ] && rm -rf .env
+          if [ -d sites_runtime.json ]; then
+            rm -rf sites_runtime.json 2>/dev/null || sudo rm -rf sites_runtime.json 2>/dev/null || true
+          fi
+          if [ -d grafana_auth_state.json ]; then
+            rm -rf grafana_auth_state.json 2>/dev/null || sudo rm -rf grafana_auth_state.json 2>/dev/null || true
+          fi
+          if [ -d .env ]; then
+            rm -rf .env 2>/dev/null || sudo rm -rf .env 2>/dev/null || true
+          fi
 
           # Ensure host mount targets exist as regular files before container start
-          [ -f .env ] || cp .env.example .env
-          [ -f sites.json ] || git checkout sites.json 2>/dev/null || echo '{"sites":[]}' > sites.json
-          [ -f grafana_auth_state.json ] || echo "{}" > grafana_auth_state.json
+          [ -f .env ] || cp .env.example .env 2>/dev/null || true
+          [ -f sites.json ] || git checkout sites.json 2>/dev/null || echo '{"sites":[]}' > sites.json 2>/dev/null || true
+          [ -f grafana_auth_state.json ] || echo "{}" > grafana_auth_state.json 2>/dev/null || true
 
           # Recreate container cleanly
           docker compose down || true

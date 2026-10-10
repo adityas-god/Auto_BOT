@@ -10,5 +10,6 @@ __pycache__/
 .idea/
 *.png
 *.log
+sites_runtime.json
 test_capture_result.png
 test_auth.png
