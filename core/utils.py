@@ -23,6 +23,8 @@ def apply_grafana_time_range(url, time_from, time_to="now"):
         params = parse_qs(parsed.query, keep_blank_values=True)
         params["from"] = [time_from]
         params["to"] = [time_to]
+        if "var-TimeInterval" in params and time_from.startswith("now-"):
+            params["var-TimeInterval"] = [time_from.replace("now-", "")]
         flat_params = []
         for k, v_list in params.items():
             for v in v_list:

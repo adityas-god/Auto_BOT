@@ -292,17 +292,11 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
 
     site_name = site.get("name", site_id)
     links = SiteManager.get_site_links(site_id, raw=True)
-    active_links = [lk for lk in links if (lk.get("enabled", True) or force) and (lk.get("url") or "").strip()]
+    active_links = [lk for lk in links if lk.get("enabled", True) and (lk.get("url") or "").strip()]
 
     if not active_links:
         bot_log(f"[{site_name}] No active or configured monitored links with URLs for this site.", site_id=site_id)
         return False, "No active enabled links"
-
-    if force:
-        for lk in active_links:
-            if not lk.get("enabled", True):
-                lk["enabled"] = True
-                SiteManager.update_site_link(site_id, lk.get("id"), {"enabled": True}, log=False)
 
     now_ts = time.time()
     tz = SiteManager.get_timezone()
@@ -312,6 +306,12 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
 
     # Check if the bundled cycle is due
     site_last_ts = safe_float(site.get("last_run_ts"), 0.0)
+    link_ts_list = [safe_float(lk.get("last_run_ts"), 0.0) for lk in active_links if safe_float(lk.get("last_run_ts"), 0.0) > 0]
+    if link_ts_list:
+        max_link_ts = max(link_ts_list)
+        if max_link_ts > site_last_ts:
+            site_last_ts = max_link_ts
+
     if not force and site_last_ts > 0:
         elapsed = now_ts - site_last_ts
         if elapsed < (bundle_cadence * 60) - 5:
@@ -447,13 +447,34 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
                 ACTIVE_LINK_RUNS.discard(f"{site_id}_{lk.get('id')}")
 
     if not captured_results:
-        return False, f"All captures failed: {', '.join(overall_errors)}"
+        now_str = get_current_time_str(tz_name=tz)
+        end_ts = time.time()
+        fail_status = f"Failed ({', '.join(overall_errors)})" if overall_errors else "Failed (No images captured)"
+        SiteManager.record_site_run(
+            site_id=site_id,
+            last_run_time=now_str,
+            last_run_ts=end_ts,
+            last_status=fail_status
+        )
+        return False, fail_status
 
     g_settings = SiteManager.get_global_settings()
     slack_token = g_settings.get("slack_bot_token")
     if not slack_token:
         bot_log(f"[{site_name}] Slack dispatch skipped (Slack Bot Token not configured).", site_id=site_id)
         _clean_temp_images(temp_images_to_clean)
+        now_str = get_current_time_str(tz_name=tz)
+        end_ts = time.time()
+        SiteManager.record_site_run(
+            site_id=site_id,
+            last_run_time=now_str,
+            last_run_ts=end_ts,
+            last_status=f"Captured ({len(captured_results)} links, No Slack Token)"
+        )
+        for res_item in captured_results:
+            lk_obj = res_item.get("link", {})
+            if lk_obj.get("id"):
+                SiteManager.update_site_link(site_id, lk_obj["id"], {"last_run_ts": end_ts}, log=False)
         return True, "No Slack Bot Token"
 
     # Filter out links configured with 'only_on_breach' that had no breach
@@ -461,6 +482,18 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
     if not alertable_items:
         bot_log(f"[{site_name}] All clear across {len(captured_results)} link(s). 'Only Alert on Anomaly/Breach' active across all links, skipping Slack alert.", site_id=site_id)
         _clean_temp_images(temp_images_to_clean)
+        now_str = get_current_time_str(tz_name=tz)
+        end_ts = time.time()
+        SiteManager.record_site_run(
+            site_id=site_id,
+            last_run_time=now_str,
+            last_run_ts=end_ts,
+            last_status="All Clear (Skipped)"
+        )
+        for res_item in captured_results:
+            lk_obj = res_item.get("link", {})
+            if lk_obj.get("id"):
+                SiteManager.update_site_link(site_id, lk_obj["id"], {"last_run_ts": end_ts}, log=False)
         return True, "Skipped (All clear)"
 
     # Group items by Slack destination (channel and thread)
@@ -476,6 +509,18 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
     if not dest_groups:
         bot_log(f"[{site_name}] Slack dispatch skipped: No Slack Channel or Member ID configured.", site_id=site_id)
         _clean_temp_images(temp_images_to_clean)
+        now_str = get_current_time_str(tz_name=tz)
+        end_ts = time.time()
+        SiteManager.record_site_run(
+            site_id=site_id,
+            last_run_time=now_str,
+            last_run_ts=end_ts,
+            last_status=f"Captured ({len(captured_results)} links, No Destination)"
+        )
+        for res_item in captured_results:
+            lk_obj = res_item.get("link", {})
+            if lk_obj.get("id"):
+                SiteManager.update_site_link(site_id, lk_obj["id"], {"last_run_ts": end_ts}, log=False)
         return True, "No destination"
 
     for (raw_dest, thread_ts), group_items in dest_groups.items():

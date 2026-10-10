@@ -51,7 +51,7 @@ def execute_site_cycle(site_id, force_all=False):
 
         bundle_enabled = bool(site.get("bundle_screenshots", False))
         if bundle_enabled:
-            ok, msg = run_site_bundle_capture_and_alert(site_id, force=force_all)
+            ok, msg = run_site_bundle_capture_and_alert(site_id, force=True)
             return
 
         now_ts = time.time()
@@ -88,6 +88,13 @@ def execute_site_cycle(site_id, force_all=False):
 
     except Exception as e:
         bot_log(f"[{site_name}] Execution error: {e}", site_id=site_id)
+        now_str = get_current_time_str(tz_name=SiteManager.get_timezone())
+        SiteManager.record_site_run(
+            site_id=site_id,
+            last_run_time=now_str,
+            last_run_ts=time.time(),
+            last_status=f"Error: {e}"
+        )
         SiteManager.set_site_state(site_id, last_status=f"Error: {e}")
     finally:
         SiteManager.set_site_state(site_id, is_running=False)
@@ -137,6 +144,11 @@ def scheduler_loop():
                 is_due = False
                 if bundle_enabled:
                     site_last_ts = safe_float(site.get("last_run_ts"), 0.0)
+                    link_ts_list = [safe_float(lk.get("last_run_ts"), 0.0) for lk in active_links if safe_float(lk.get("last_run_ts"), 0.0) > 0]
+                    if link_ts_list:
+                        max_link_ts = max(link_ts_list)
+                        if max_link_ts > site_last_ts:
+                            site_last_ts = max_link_ts
                     if site_last_ts <= 0:
                         is_due = True
                     elif (now_ts - site_last_ts) >= (effective_interval * 60) - 5:
@@ -160,14 +172,8 @@ def scheduler_loop():
                             break
 
                 if is_due and not s_state.get("is_running", False):
-                    # Immediately record run timestamp to lock out repeated triggers in subsequent scheduler loop iterations
-                    SiteManager.set_site_state(s_id, is_running=True)
-                    SiteManager.record_site_run(
-                        s_id,
-                        last_run_time=get_current_time_str(tz_name=SiteManager.get_timezone()),
-                        last_run_ts=now_ts,
-                        last_status="Scheduled..."
-                    )
+                    # Flag site running immediately in memory to lock out repeated triggers in subsequent ticks
+                    SiteManager.set_site_state(s_id, is_running=True, last_status="Scheduled...")
                     # Spawn dedicated worker thread for this site (Zero-conflict parallel execution)
                     t = threading.Thread(target=execute_site_cycle, args=(s_id, False), daemon=True)
                     t.start()

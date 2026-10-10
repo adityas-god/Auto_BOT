@@ -26,7 +26,7 @@ from core.config import (
     GEMINI_API_KEY,
     _PYMONGO_AVAILABLE,
 )
-from core.utils import safe_int, _make_json_safe, format_slack_message
+from core.utils import safe_int, safe_float, _make_json_safe, format_slack_message
 from core.logger import bot_log
 
 if _PYMONGO_AVAILABLE:
@@ -687,17 +687,18 @@ class SiteManager:
     @classmethod
     def record_site_run(cls, site_id, last_run_time, last_run_ts, last_status):
         cls.init()
+        ts_val = safe_float(last_run_ts, 0.0)
         with cls._lock:
             for s in cls._data.get("sites", []):
                 if s["id"] == site_id:
                     s["last_run_time"] = last_run_time
-                    s["last_run_ts"] = last_run_ts
+                    s["last_run_ts"] = ts_val
                     s["last_status"] = last_status
                     break
             st = cls._site_states.get(site_id)
             if st:
                 st["last_run_time"] = last_run_time
-                st["last_run_ts"] = last_run_ts
+                st["last_run_ts"] = ts_val
                 st["last_status"] = last_status
             cls._save_data_no_lock()
 
