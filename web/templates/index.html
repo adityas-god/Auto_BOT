@@ -1991,11 +1991,17 @@
             <span class="badge-subtle" style="color: var(--primary-orange); border-color: var(--primary-orange); font-weight: 800;">DRAFT TAB (UNSAVED)</span>
           `}
         </div>
-        <div style="display: flex; gap: 6px; align-items: center;">
-          <button type="button" class="btn btn-orange" style="height: 28px; font-size: 11px; padding: 0 12px; display: inline-flex; align-items: center;" onclick="saveActiveTabLink()">
+        <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+          <button type="button" class="btn btn-orange" id="btn-tab-save-top" style="height: 28px; font-size: 11px; padding: 0 12px; display: inline-flex; align-items: center;" onclick="saveActiveTabLink()">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
             Save Link Config
           </button>
+          ${!isEnabled && !isNew ? `
+            <button type="button" class="btn" style="height: 28px; font-size: 11px; padding: 0 12px; display: inline-flex; align-items: center; background: #16a34a; color: #fff; font-weight: 700; border: none; border-radius: 4px; cursor: pointer;" onclick="saveActiveTabLink(false, true)" title="Saves link settings and immediately activates monitoring">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 4px;"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              Save &amp; Start Monitoring
+            </button>
+          ` : ''}
           ${!isNew ? `
             <button type="button" class="btn btn-danger-outline" style="height: 28px; font-size: 11px; padding: 0 8px; border-color: #fca5a5; color: #dc2626; display: inline-flex; align-items: center;" onclick="deleteActiveTabLink()" title="Delete this link tab">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
@@ -2443,6 +2449,12 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
             Save Link Config
           </button>
+          ${!isEnabled && !isNew ? `
+            <button type="button" class="btn" onclick="saveActiveTabLink(false, true)" style="font-size: 11.5px; font-weight: 700; height: 32px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; background: #16a34a; color: #fff; border: none; border-radius: 4px; cursor: pointer;" title="Saves settings and activates monitoring immediately">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              Save &amp; Start Monitoring
+            </button>
+          ` : ''}
 
           <div style="width: 1px; height: 22px; background: #d4d4d8; margin: 0 2px; flex-shrink: 0;"></div>
 
@@ -2649,119 +2661,160 @@
     showToast("Session key & expiry parsed successfully! Click 'Save Link Config'.");
   }
 
-  async function saveActiveTabLink(silent = false) {
-    if (!CURRENT_SITE_ID) return;
-    const urlEl = document.getElementById("tab_cfg_url");
-    const url = urlEl ? urlEl.value.trim() : "";
-    if (!url) {
-      if (!silent) {
-        showToast("Please provide a Grafana target URL", true);
-        if (urlEl) urlEl.focus();
-      }
-      return;
-    }
+  async function saveActiveTabLink(silent = false, alsoActivate = false) {
+    if (!CURRENT_SITE_ID) return false;
 
-    let intVal = document.getElementById("tab_cfg_interval").value;
-    if (intVal === "custom") {
-      intVal = document.getElementById("tab_cfg_interval_custom").value.trim() || "1";
-    }
-    const resolvedInt = Math.max(1, parseInt(intVal, 10) || 1);
-    if (document.getElementById("interval_minutes")) {
-      document.getElementById("interval_minutes").value = String(resolvedInt);
-    }
-    const tabSlackMsg = document.getElementById("tab_cfg_message") ? document.getElementById("tab_cfg_message").value.trim() : "";
-    if (tabSlackMsg && document.getElementById("slack_message")) {
-      document.getElementById("slack_message").value = tabSlackMsg;
-    }
-    const tabSlackChan = document.getElementById("tab_cfg_channel") ? document.getElementById("tab_cfg_channel").value.trim() : "";
-    if (tabSlackChan && document.getElementById("slack_channel_id")) {
-      document.getElementById("slack_channel_id").value = tabSlackChan;
-    }
-    const tabSlackThread = document.getElementById("tab_cfg_thread") ? document.getElementById("tab_cfg_thread").value.trim() : "";
-    if (document.getElementById("slack_thread_ts")) {
-      document.getElementById("slack_thread_ts").value = tabSlackThread;
-    }
+    const saveBtns = Array.from(document.querySelectorAll("#btn-tab-save, #btn-tab-save-top"));
+    saveBtns.forEach(b => {
+      b.disabled = true;
+      if (!b.dataset.origHtml) b.dataset.origHtml = b.innerHTML;
+      b.innerHTML = '<span style="display:inline-flex;align-items:center;gap:4px;">💾 Saving...</span>';
+    });
 
-    const shiftsPayload = {
-      morning_hours: document.getElementById("tab_cfg_shift_morning_hours") ? document.getElementById("tab_cfg_shift_morning_hours").value.trim() : "06:00-14:00",
-      morning_users: document.getElementById("tab_cfg_shift_morning_users") ? document.getElementById("tab_cfg_shift_morning_users").value.trim() : "",
-      afternoon_hours: document.getElementById("tab_cfg_shift_afternoon_hours") ? document.getElementById("tab_cfg_shift_afternoon_hours").value.trim() : "14:00-22:00",
-      afternoon_users: document.getElementById("tab_cfg_shift_afternoon_users") ? document.getElementById("tab_cfg_shift_afternoon_users").value.trim() : "",
-      night_hours: document.getElementById("tab_cfg_shift_night_hours") ? document.getElementById("tab_cfg_shift_night_hours").value.trim() : "22:00-06:00",
-      night_users: document.getElementById("tab_cfg_shift_night_users") ? document.getElementById("tab_cfg_shift_night_users").value.trim() : "",
-      tag_channel: document.getElementById("tab_cfg_shift_tag_channel") ? document.getElementById("tab_cfg_shift_tag_channel").checked : true,
-      send_dm: document.getElementById("tab_cfg_shift_send_dm") ? document.getElementById("tab_cfg_shift_send_dm").checked : true
+    const resetBtns = (isOk = false) => {
+      saveBtns.forEach(b => {
+        b.disabled = false;
+        if (isOk) {
+          b.innerHTML = '<span style="display:inline-flex;align-items:center;gap:4px;">✅ Saved!</span>';
+          const origBg = b.style.background;
+          b.style.background = '#16a34a';
+          b.style.color = '#fff';
+          setTimeout(() => {
+            b.innerHTML = b.dataset.origHtml || 'Save Link Config';
+            b.style.background = origBg;
+            b.style.color = '';
+          }, 2000);
+        } else {
+          b.innerHTML = b.dataset.origHtml || 'Save Link Config';
+        }
+      });
     };
-
-    // Synchronize to hidden site-level inputs so site save keeps latest roster
-    if (document.getElementById("shift_morning_hours")) document.getElementById("shift_morning_hours").value = shiftsPayload.morning_hours;
-    if (document.getElementById("shift_morning_users")) document.getElementById("shift_morning_users").value = shiftsPayload.morning_users;
-    if (document.getElementById("shift_afternoon_hours")) document.getElementById("shift_afternoon_hours").value = shiftsPayload.afternoon_hours;
-    if (document.getElementById("shift_afternoon_users")) document.getElementById("shift_afternoon_users").value = shiftsPayload.afternoon_users;
-    if (document.getElementById("shift_night_hours")) document.getElementById("shift_night_hours").value = shiftsPayload.night_hours;
-    if (document.getElementById("shift_night_users")) document.getElementById("shift_night_users").value = shiftsPayload.night_users;
-    if (document.getElementById("shift_tag_channel")) document.getElementById("shift_tag_channel").checked = shiftsPayload.tag_channel;
-    if (document.getElementById("shift_send_dm")) document.getElementById("shift_send_dm").checked = shiftsPayload.send_dm;
-
-    let userVal = document.getElementById("tab_cfg_username") ? document.getElementById("tab_cfg_username").value.trim() : "";
-    if (userVal.startsWith("http://") || userVal.startsWith("https://")) {
-      userVal = "";
-    }
-
-    let tokenVal = document.getElementById("tab_cfg_token") ? document.getElementById("tab_cfg_token").value.trim() : "";
-    const expEl = document.getElementById("tab_cfg_token_expiry");
-    let expVal = expEl ? expEl.value.trim() : "";
-
-    if (tokenVal) {
-      if (tokenVal.includes("grafana_session=")) {
-        const m = tokenVal.match(/grafana_session=([^;]+)/);
-        if (m) tokenVal = m[1].trim();
-      } else if (tokenVal.includes("=")) {
-        tokenVal = tokenVal.split("=")[1].split(";")[0].trim();
-      }
-      tokenVal = tokenVal.replace(/^['"]+|['"]+$/g, "");
-
-      const nowSec = Math.floor(Date.now() / 1000);
-      let expNum = parseInt(expVal, 10);
-      if (isNaN(expNum) || expNum <= nowSec) {
-        expNum = nowSec + 31536000;
-      }
-      tokenVal = `grafana_session=${tokenVal}; grafana_session_expiry=${expNum}`;
-    }
-
-    const payload = {
-      title: document.getElementById("tab_cfg_title").value.trim() || "Monitored Link",
-      url: url,
-      username: userVal,
-      password: document.getElementById("tab_cfg_password") ? document.getElementById("tab_cfg_password").value.trim() : "",
-      clear_password: !!window.TAB_CLEAR_PASSWORD,
-      token: tokenVal,
-      clear_token: !!window.TAB_CLEAR_TOKEN,
-      interval_minutes: resolvedInt,
-      time_range: document.getElementById("tab_cfg_timerange").value,
-      threshold_enabled: document.getElementById("tab_cfg_thresh_enabled").checked,
-      threshold_ai_mode: document.getElementById("tab_cfg_thresh_ai_mode") ? document.getElementById("tab_cfg_thresh_ai_mode").checked : false,
-      threshold_ai_prompt: document.getElementById("tab_cfg_thresh_ai_prompt") ? document.getElementById("tab_cfg_thresh_ai_prompt").value.trim() : "",
-      threshold_metric_type: document.getElementById("tab_cfg_metric_type").value,
-      threshold_operator: document.getElementById("tab_cfg_operator").value,
-      threshold_value: document.getElementById("tab_cfg_value").value.trim(),
-      threshold_keywords: document.getElementById("tab_cfg_keywords").value.trim(),
-      threshold_colors: document.getElementById("tab_cfg_colors").value.trim(),
-      threshold_breach_users: document.getElementById("tab_cfg_breach_users") ? document.getElementById("tab_cfg_breach_users").value.trim() : "",
-      slack_channel_id: document.getElementById("tab_cfg_channel").value.trim(),
-      slack_thread_ts: document.getElementById("tab_cfg_thread").value.trim(),
-      slack_message: document.getElementById("tab_cfg_message").value.trim(),
-      send_channel: document.getElementById("tab_cfg_send_channel").checked,
-      send_dm: document.getElementById("tab_cfg_send_dm").checked,
-      only_on_breach: document.getElementById("tab_cfg_only_breach").checked,
-      shifts: shiftsPayload
-    };
-    if (isNew) {
-      payload.enabled = true;
-    }
 
     try {
+      const getVal = (id, fallback = "") => {
+        const el = document.getElementById(id);
+        return el ? el.value.trim() : fallback;
+      };
+      const getChecked = (id, fallback = false) => {
+        const el = document.getElementById(id);
+        return el ? !!el.checked : fallback;
+      };
+
+      const urlEl = document.getElementById("tab_cfg_url");
+      const url = urlEl ? urlEl.value.trim() : "";
+      if (!url) {
+        resetBtns(false);
+        if (!silent) {
+          showToast("Please provide a Grafana target URL", true);
+          const secTarget = document.getElementById("sec-tab-target");
+          if (secTarget && secTarget.classList.contains("collapsed")) {
+            secTarget.classList.remove("collapsed");
+            if (window.LINK_SECTIONS_STATE) window.LINK_SECTIONS_STATE["sec-tab-target"] = false;
+          }
+          if (urlEl) urlEl.focus();
+        }
+        return false;
+      }
+
+      let intVal = getVal("tab_cfg_interval", "30");
+      if (intVal === "custom") {
+        intVal = getVal("tab_cfg_interval_custom", "1");
+      }
+      const resolvedInt = Math.max(1, parseInt(intVal, 10) || 1);
+      if (document.getElementById("interval_minutes")) {
+        document.getElementById("interval_minutes").value = String(resolvedInt);
+      }
+
+      const tabSlackMsg = getVal("tab_cfg_message", "");
+      if (tabSlackMsg && document.getElementById("slack_message")) {
+        document.getElementById("slack_message").value = tabSlackMsg;
+      }
+      const tabSlackChan = getVal("tab_cfg_channel", "");
+      if (tabSlackChan && document.getElementById("slack_channel_id")) {
+        document.getElementById("slack_channel_id").value = tabSlackChan;
+      }
+      const tabSlackThread = getVal("tab_cfg_thread", "");
+      if (document.getElementById("slack_thread_ts")) {
+        document.getElementById("slack_thread_ts").value = tabSlackThread;
+      }
+
+      const shiftsPayload = {
+        morning_hours: getVal("tab_cfg_shift_morning_hours", "06:00-14:00"),
+        morning_users: getVal("tab_cfg_shift_morning_users", ""),
+        afternoon_hours: getVal("tab_cfg_shift_afternoon_hours", "14:00-22:00"),
+        afternoon_users: getVal("tab_cfg_shift_afternoon_users", ""),
+        night_hours: getVal("tab_cfg_shift_night_hours", "22:00-06:00"),
+        night_users: getVal("tab_cfg_shift_night_users", ""),
+        tag_channel: getChecked("tab_cfg_shift_tag_channel", true),
+        send_dm: getChecked("tab_cfg_shift_send_dm", true)
+      };
+
+      if (document.getElementById("shift_morning_hours")) document.getElementById("shift_morning_hours").value = shiftsPayload.morning_hours;
+      if (document.getElementById("shift_morning_users")) document.getElementById("shift_morning_users").value = shiftsPayload.morning_users;
+      if (document.getElementById("shift_afternoon_hours")) document.getElementById("shift_afternoon_hours").value = shiftsPayload.afternoon_hours;
+      if (document.getElementById("shift_afternoon_users")) document.getElementById("shift_afternoon_users").value = shiftsPayload.afternoon_users;
+      if (document.getElementById("shift_night_hours")) document.getElementById("shift_night_hours").value = shiftsPayload.night_hours;
+      if (document.getElementById("shift_night_users")) document.getElementById("shift_night_users").value = shiftsPayload.night_users;
+      if (document.getElementById("shift_tag_channel")) document.getElementById("shift_tag_channel").checked = shiftsPayload.tag_channel;
+      if (document.getElementById("shift_send_dm")) document.getElementById("shift_send_dm").checked = shiftsPayload.send_dm;
+
+      let userVal = getVal("tab_cfg_username", "");
+      if (userVal.startsWith("http://") || userVal.startsWith("https://")) {
+        userVal = "";
+      }
+
+      let tokenVal = getVal("tab_cfg_token", "");
+      let expVal = getVal("tab_cfg_token_expiry", "");
+      if (tokenVal) {
+        if (tokenVal.includes("grafana_session=")) {
+          const m = tokenVal.match(/grafana_session=([^;]+)/);
+          if (m) tokenVal = m[1].trim();
+        } else if (tokenVal.includes("=")) {
+          tokenVal = tokenVal.split("=")[1].split(";")[0].trim();
+        }
+        tokenVal = tokenVal.replace(/^['"]+|['"]+$/g, "");
+
+        const nowSec = Math.floor(Date.now() / 1000);
+        let expNum = parseInt(expVal, 10);
+        if (isNaN(expNum) || expNum <= nowSec) {
+          expNum = nowSec + 31536000;
+        }
+        tokenVal = `grafana_session=${tokenVal}; grafana_session_expiry=${expNum}`;
+      }
+
+      const payload = {
+        title: getVal("tab_cfg_title", "Monitored Link") || "Monitored Link",
+        url: url,
+        username: userVal,
+        password: getVal("tab_cfg_password", ""),
+        clear_password: !!window.TAB_CLEAR_PASSWORD,
+        token: tokenVal,
+        clear_token: !!window.TAB_CLEAR_TOKEN,
+        interval_minutes: resolvedInt,
+        time_range: getVal("tab_cfg_timerange", "url_default"),
+        threshold_enabled: getChecked("tab_cfg_thresh_enabled", true),
+        threshold_ai_mode: getChecked("tab_cfg_thresh_ai_mode", false),
+        threshold_ai_prompt: getVal("tab_cfg_thresh_ai_prompt", ""),
+        threshold_metric_type: getVal("tab_cfg_metric_type", "spike_jump"),
+        threshold_operator: getVal("tab_cfg_operator", ">"),
+        threshold_value: getVal("tab_cfg_value", "20"),
+        threshold_keywords: getVal("tab_cfg_keywords", ""),
+        threshold_colors: getVal("tab_cfg_colors", "red, orange, yellow"),
+        threshold_breach_users: getVal("tab_cfg_breach_users", ""),
+        slack_channel_id: getVal("tab_cfg_channel", ""),
+        slack_thread_ts: getVal("tab_cfg_thread", ""),
+        slack_message: getVal("tab_cfg_message", "*Grafana Snapshot Alert* - {datetime}"),
+        send_channel: getChecked("tab_cfg_send_channel", true),
+        send_dm: getChecked("tab_cfg_send_dm", true),
+        only_on_breach: getChecked("tab_cfg_only_breach", false),
+        shifts: shiftsPayload
+      };
+
       const isNew = ACTIVE_TAB_LINK_ID === "new";
+      if (isNew || alsoActivate) {
+        payload.enabled = true;
+      }
+
       const endpoint = isNew ? `/api/sites/${CURRENT_SITE_ID}/links` : `/api/sites/${CURRENT_SITE_ID}/links/${ACTIVE_TAB_LINK_ID}`;
       const res = await fetch(endpoint, {
         method: "POST",
@@ -2774,21 +2827,29 @@
         window.TAB_CLEAR_TOKEN = false;
         const isBundle = document.getElementById("bundle_screenshots") && document.getElementById("bundle_screenshots").checked;
         if (!silent) {
-          showToast(isBundle ? "Link saved & synced across ALL bundle tabs!" : "Link configuration saved successfully!");
+          if (alsoActivate) {
+            showToast("Saved & automated monitoring STARTED!");
+          } else {
+            showToast(isBundle ? "Link saved & synced across ALL bundle tabs!" : "Link configuration saved successfully!");
+          }
         }
         if (isNew && data.link && data.link.id) {
           ACTIVE_TAB_LINK_ID = data.link.id;
         }
+        resetBtns(true);
         await loadAndRenderSiteLinks();
         await loadSites(true);
         fetchLogs();
         return true;
       } else {
-        if (!silent) showToast("Error: " + data.error, true);
+        resetBtns(false);
+        if (!silent) showToast("Error: " + (data.error || "Save failed"), true);
         return false;
       }
     } catch(e) {
-      if (!silent) showToast("Network error saving link", true);
+      resetBtns(false);
+      console.error("saveActiveTabLink error:", e);
+      if (!silent) showToast("Network/script error saving link: " + e.message, true);
       return false;
     }
   }

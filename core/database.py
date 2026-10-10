@@ -1140,7 +1140,15 @@ class SiteManager:
 
                     if "interval_minutes" in updates: target["interval_minutes"] = max(0, safe_int(updates["interval_minutes"], 0))
                     if "time_range" in updates: target["time_range"] = str(updates["time_range"]).strip()
-                    if "enabled" in updates: target["enabled"] = bool(updates["enabled"])
+                    if "enabled" in updates:
+                        target["enabled"] = bool(updates["enabled"])
+                        target["last_status"] = "Active" if target["enabled"] else "Paused"
+                        if target["enabled"]:
+                            s["paused"] = False
+                            st = cls._site_states.get(site_id)
+                            if st:
+                                st["is_paused"] = False
+                                st["last_status"] = "Active"
                     if "slack_channel_id" in updates: target["slack_channel_id"] = cls.parse_channel_id(updates["slack_channel_id"])
                     if "slack_thread_ts" in updates: target["slack_thread_ts"] = cls.parse_thread_ts(updates["slack_thread_ts"])
                     if "slack_message" in updates: target["slack_message"] = str(updates["slack_message"]).strip()
