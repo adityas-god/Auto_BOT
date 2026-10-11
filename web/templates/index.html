@@ -1024,9 +1024,13 @@
               </div>
             </div>
             <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-              <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; background: #fafaf9; border: 1.5px solid var(--border-light); padding: 6px 12px; border-radius: 6px;">
+              <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; background: #fafaf9; border: 1.5px solid var(--border-light); padding: 6px 12px; border-radius: 6px;" title="Bundle all link screenshots under this site into a single Slack post">
                 <input type="checkbox" id="bundle_screenshots" onchange="onBundleToggleChange()" style="accent-color: var(--primary-orange); width: 18px; height: 18px; cursor: pointer;">
                 <span style="font-size: 11.5px; font-weight: 700; color: var(--text-dark);">Bundle in 1 Post</span>
+              </label>
+              <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; background: #fafaf9; border: 1.5px solid var(--border-light); padding: 6px 12px; border-radius: 6px;" title="Evenly remove sidebar and stretch dashboard panels to full width across all links under this site">
+                <input type="checkbox" id="site_hide_sidebar" onchange="onSiteSidebarToggleChange()" style="accent-color: var(--primary-orange); width: 18px; height: 18px; cursor: pointer;">
+                <span style="font-size: 11.5px; font-weight: 700; color: var(--text-dark);">Hide Sidebar (All Links)</span>
               </label>
               <button type="button" class="btn btn-orange" id="btn-run-all-bundle" onclick="triggerCurrentSiteRun()" style="height: 33px; font-size: 11.5px; font-weight: 700; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px;" title="Capture all link tabs under this site now and deliver in 1 bundled Slack message">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
@@ -1693,6 +1697,8 @@
     document.getElementById("site_name").value = site.name || "";
     const bundleEl = document.getElementById("bundle_screenshots");
     if (bundleEl) bundleEl.checked = !!site.bundle_screenshots;
+    const siteSidebarEl = document.getElementById("site_hide_sidebar");
+    if (siteSidebarEl) siteSidebarEl.checked = !!site.hide_sidebar;
     document.getElementById("interval_minutes").value = site.interval_minutes || 30;
     document.getElementById("grafana_url").value = site.grafana_url || "";
     document.getElementById("grafana_username").value = site.grafana_username || "";
@@ -1859,7 +1865,10 @@
         slack_message: (isBundleOn && siblingLink.slack_message) ? siblingLink.slack_message : (activeSiteObj.slack_message || "*Grafana Snapshot Alert* - {datetime}"),
         send_channel: (isBundleOn && siblingLink.send_channel !== undefined) ? siblingLink.send_channel : true,
         send_dm: (isBundleOn && siblingLink.send_dm !== undefined) ? siblingLink.send_dm : true,
-        only_on_breach: isBundleOn ? !!siblingLink.only_on_breach : false
+        only_on_breach: isBundleOn ? !!siblingLink.only_on_breach : false,
+        hide_sidebar: isBundleOn ? !!(siblingLink.hide_sidebar !== undefined ? siblingLink.hide_sidebar : activeSiteObj.hide_sidebar) : !!activeSiteObj.hide_sidebar,
+        expand_enabled: isBundleOn ? !!siblingLink.expand_enabled : false,
+        expand_row: (isBundleOn && siblingLink.expand_row) ? siblingLink.expand_row : "Station Performance"
       };
     } else {
       lk = CURRENT_SITE_LINKS.find(l => l.id === ACTIVE_TAB_LINK_ID);
@@ -2090,6 +2099,50 @@
               <span class="badge-subtle">Full dashboard or specific panel URL</span>
             </label>
             <input type="text" id="tab_cfg_url" class="input-field input-code" placeholder="http://172.19.40.56:3000/d/... or /d-solo/..." value="${escapeHtml(lk.url || '')}" required>
+          </div>
+
+          <!-- Sidebar Removal / Full-Width Panels (ON / OFF Toggle) -->
+          <div style="background: #fafaf9; border: 1.5px solid #e4e4e7; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #27272a; margin-bottom: 0; cursor: pointer;">
+                  <input type="checkbox" id="tab_cfg_hide_sidebar" ${lk.hide_sidebar ? 'checked' : ''} onchange="toggleTabSidebarView()" style="accent-color: var(--primary-orange); width: 16px; height: 16px; cursor: pointer;">
+                  <span>Remove Left Navigation Sidebar</span>
+                </label>
+                <div style="font-size: 11px; color: #71717a; margin-top: 2px;">
+                  Hides the left Grafana navigation menu/dock so dashboard panels occupy full screen width.
+                  ${isBundleOn ? '<span style="color: var(--primary-orange); font-weight: 700; margin-left: 4px;">(Bundle Sync: evenly applies to all links in this site)</span>' : ''}
+                </div>
+              </div>
+              <span id="tab-sidebar-status-badge" class="cell-tag ${lk.hide_sidebar ? 'tag-green' : 'tag-amber'}" style="font-size: 10px; padding: 2px 8px; font-weight: 700;">
+                ${lk.hide_sidebar ? 'ON' : 'OFF'}
+              </span>
+            </div>
+          </div>
+
+          <!-- Auto-Expand Specific Panel / Row (ON / OFF Toggle) -->
+          <div style="background: #fafaf9; border: 1.5px solid #e4e4e7; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: #27272a; margin-bottom: 0; cursor: pointer;">
+                  <input type="checkbox" id="tab_cfg_expand_enabled" ${lk.expand_enabled ? 'checked' : ''} onchange="toggleTabExpandView()" style="accent-color: var(--primary-orange); width: 16px; height: 16px; cursor: pointer;">
+                  <span>Auto-Expand Specific Panel / Row</span>
+                </label>
+                <div style="font-size: 11px; color: #71717a; margin-top: 2px;">
+                  Expands only the requested panel row before capturing (leaves all other rows collapsed).
+                </div>
+              </div>
+              <span id="tab-expand-status-badge" class="cell-tag ${lk.expand_enabled ? 'tag-green' : 'tag-amber'}" style="font-size: 10px; padding: 2px 8px; font-weight: 700;">
+                ${lk.expand_enabled ? 'ON' : 'OFF'}
+              </span>
+            </div>
+            <div id="tab_expand_input_wrap" style="display: ${lk.expand_enabled ? 'block' : 'none'}; margin-top: 10px; border-top: 1px dashed #e4e4e7; padding-top: 8px;">
+              <label class="form-label" for="tab_cfg_expand_row" style="margin-bottom: 4px; font-size: 11px;">
+                <span>Target Panel / Row Name to Expand</span>
+                <span class="badge-subtle">e.g. Station Performance</span>
+              </label>
+              <input type="text" id="tab_cfg_expand_row" class="input-field input-code" placeholder="Station Performance" value="${escapeHtml(lk.expand_row || 'Station Performance')}">
+            </div>
           </div>
 
           <div class="field-row">
@@ -2584,6 +2637,53 @@
     window.LINK_SECTIONS_STATE[secId] = el.classList.contains("collapsed");
   }
 
+  function toggleTabExpandView() {
+    const chk = document.getElementById("tab_cfg_expand_enabled");
+    const wrap = document.getElementById("tab_expand_input_wrap");
+    const badge = document.getElementById("tab-expand-status-badge");
+    if (!chk) return;
+    const isEn = chk.checked;
+    if (wrap) wrap.style.display = isEn ? "block" : "none";
+    if (badge) {
+      badge.className = "cell-tag " + (isEn ? "tag-green" : "tag-amber");
+      badge.innerText = isEn ? "ON" : "OFF";
+    }
+  }
+
+  function toggleTabSidebarView() {
+    const chk = document.getElementById("tab_cfg_hide_sidebar");
+    const badge = document.getElementById("tab-sidebar-status-badge");
+    if (!chk) return;
+    const isEn = chk.checked;
+    if (badge) {
+      badge.className = "cell-tag " + (isEn ? "tag-green" : "tag-amber");
+      badge.innerText = isEn ? "ON" : "OFF";
+    }
+    const isBundle = document.getElementById("bundle_screenshots") && document.getElementById("bundle_screenshots").checked;
+    if (isBundle && Array.isArray(CURRENT_SITE_LINKS)) {
+      CURRENT_SITE_LINKS.forEach(l => { l.hide_sidebar = isEn; });
+      const siteSidebarEl = document.getElementById("site_hide_sidebar");
+      if (siteSidebarEl) siteSidebarEl.checked = isEn;
+    }
+  }
+
+  async function onSiteSidebarToggleChange() {
+    const isChecked = document.getElementById("site_hide_sidebar") ? document.getElementById("site_hide_sidebar").checked : false;
+    if (Array.isArray(CURRENT_SITE_LINKS)) {
+      CURRENT_SITE_LINKS.forEach(l => { l.hide_sidebar = isChecked; });
+    }
+    const tabSidebarEl = document.getElementById("tab_cfg_hide_sidebar");
+    if (tabSidebarEl) {
+      tabSidebarEl.checked = isChecked;
+      toggleTabSidebarView();
+    }
+    showToast(isChecked
+      ? "Sidebar Removal ON: Left navigation menu will be hidden on all bundle links for full-width panels."
+      : "Sidebar Removal OFF: Normal Grafana layout with sidebar preserved.");
+    await saveCurrentSite(true);
+    await loadAndRenderSiteLinks();
+  }
+
   function clearActiveTabUsername() {
     const el = document.getElementById("tab_cfg_username");
     if (el) el.value = "";
@@ -2807,6 +2907,9 @@
         send_channel: getChecked("tab_cfg_send_channel", true),
         send_dm: getChecked("tab_cfg_send_dm", true),
         only_on_breach: getChecked("tab_cfg_only_breach", false),
+        hide_sidebar: getChecked("tab_cfg_hide_sidebar", false),
+        expand_enabled: getChecked("tab_cfg_expand_enabled", false),
+        expand_row: getVal("tab_cfg_expand_row", "Station Performance"),
         shifts: shiftsPayload
       };
 
@@ -3195,6 +3298,7 @@
       const payload = {
         name: document.getElementById("site_name") ? document.getElementById("site_name").value.trim() : "",
         bundle_screenshots: document.getElementById("bundle_screenshots") ? document.getElementById("bundle_screenshots").checked : false,
+        hide_sidebar: document.getElementById("site_hide_sidebar") ? document.getElementById("site_hide_sidebar").checked : false,
         interval_minutes: (document.getElementById("tab_cfg_interval") && document.getElementById("tab_cfg_interval").value !== "custom" 
           ? document.getElementById("tab_cfg_interval").value 
           : (document.getElementById("interval_minutes") ? document.getElementById("interval_minutes").value : "30")),

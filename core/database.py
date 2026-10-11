@@ -102,6 +102,7 @@ class SiteManager:
             "enabled": True,
             "paused": True,  # Strictly paused by default unless explicitly started
             "bundle_screenshots": os.getenv("BUNDLE_SCREENSHOTS", "false").strip().lower() == "true",
+            "hide_sidebar": os.getenv("HIDE_SIDEBAR", "false").strip().lower() == "true",
             "interval_minutes": safe_int(os.getenv("SCHEDULE_INTERVAL_MINUTES"), 30),
             "grafana_url": os.getenv("GRAFANA_URL", "").strip(),
             "grafana_username": os.getenv("GRAFANA_USERNAME", "").strip(),
@@ -863,6 +864,12 @@ class SiteManager:
                     st["last_status"] = "Paused" if is_p else "Idle"
             if "bundle_screenshots" in updates:
                 target["bundle_screenshots"] = bool(updates["bundle_screenshots"])
+            if "hide_sidebar" in updates:
+                target["hide_sidebar"] = bool(updates["hide_sidebar"])
+            if "expand_enabled" in updates:
+                target["expand_enabled"] = bool(updates["expand_enabled"])
+            if "expand_row" in updates:
+                target["expand_row"] = str(updates["expand_row"]).strip()
 
             thresh = target.setdefault("threshold", {})
             th_map = {
@@ -901,6 +908,12 @@ class SiteManager:
             if target.get("bundle_screenshots"):
                 # When bundle mode is ON, propagate shared configurations to all links under this site
                 for lk in target.get("links", []):
+                    if "hide_sidebar" in updates:
+                        lk["hide_sidebar"] = target["hide_sidebar"]
+                    if "expand_enabled" in updates:
+                        lk["expand_enabled"] = target["expand_enabled"]
+                    if "expand_row" in updates:
+                        lk["expand_row"] = target["expand_row"]
                     if "interval_minutes" in updates:
                         lk["interval_minutes"] = target["interval_minutes"]
                     if "slack_message" in updates and str(updates["slack_message"]).strip():
@@ -1075,6 +1088,9 @@ class SiteManager:
                             "tag_channel": bool((link_data.get("shifts") or {}).get("tag_channel", sib_sh.get("tag_channel", True))),
                             "send_dm": bool((link_data.get("shifts") or {}).get("send_dm", sib_sh.get("send_dm", True)))
                         },
+                        "hide_sidebar": bool(link_data.get("hide_sidebar", s.get("hide_sidebar", False))),
+                        "expand_enabled": bool(link_data.get("expand_enabled", False)),
+                        "expand_row": str(link_data.get("expand_row") or "Station Performance").strip(),
                         "last_reading": None,
                         "last_run_time": None,
                         "last_run_ts": 0,
@@ -1155,6 +1171,9 @@ class SiteManager:
                     if "send_channel" in updates: target["send_channel"] = bool(updates["send_channel"])
                     if "send_dm" in updates: target["send_dm"] = bool(updates["send_dm"])
                     if "only_on_breach" in updates: target["only_on_breach"] = bool(updates["only_on_breach"])
+                    if "hide_sidebar" in updates: target["hide_sidebar"] = bool(updates["hide_sidebar"])
+                    if "expand_enabled" in updates: target["expand_enabled"] = bool(updates["expand_enabled"])
+                    if "expand_row" in updates: target["expand_row"] = str(updates["expand_row"]).strip()
                     if "last_reading" in updates: target["last_reading"] = updates["last_reading"]
                     if "last_run_time" in updates: target["last_run_time"] = updates["last_run_time"]
                     if "last_run_ts" in updates: target["last_run_ts"] = float(updates["last_run_ts"])
@@ -1187,7 +1206,7 @@ class SiteManager:
                         shared_link_keys = (
                             "interval_minutes", "slack_message", "slack_channel_id",
                             "slack_thread_ts", "send_channel", "send_dm", "only_on_breach",
-                            "time_range"
+                            "time_range", "hide_sidebar", "expand_enabled", "expand_row"
                         )
                         for other_lk in links:
                             if other_lk["id"] == link_id:
@@ -1204,6 +1223,12 @@ class SiteManager:
                                 other_lk["last_status"] = "Active" if target["enabled"] else "Paused"
 
                         # Keep site-level fallbacks in sync
+                        if "hide_sidebar" in updates:
+                            s["hide_sidebar"] = target["hide_sidebar"]
+                        if "expand_enabled" in updates:
+                            s["expand_enabled"] = target["expand_enabled"]
+                        if "expand_row" in updates:
+                            s["expand_row"] = target["expand_row"]
                         if "interval_minutes" in updates:
                             s["interval_minutes"] = target["interval_minutes"]
                         if "slack_message" in updates:

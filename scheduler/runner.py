@@ -89,13 +89,17 @@ def run_link_capture_and_alert(site_id, link_id, force=False, caller_acquired_lo
     try:
         with GLOBAL_CAPTURE_SEMAPHORE:
             capture = GrafanaCapture(site_dict=site)
+            is_bundle = bool(site.get("bundle_screenshots"))
+            effective_hide_sidebar = bool(lk.get("hide_sidebar") or (is_bundle and site.get("hide_sidebar")))
             lk_image, extraction = capture.capture_screenshot(
                 target_url=target_url,
                 output_path=None,
                 username=lk_user,
                 password=lk_pwd,
                 token=lk_token,
-                return_extracted=True
+                return_extracted=True,
+                expand_row=(lk.get("expand_row") or lk.get("expand_panel") or "Station Performance") if lk.get("expand_enabled") else "off",
+                hide_sidebar=effective_hide_sidebar
             )
 
         if not lk_image or not os.path.exists(lk_image):
@@ -357,6 +361,11 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
     overall_errors = []
     temp_images_to_clean = []
 
+    # In bundle mode, evenly apply sidebar removal and row expansion across all links in the site
+    bundle_hide_sidebar = bool(site.get("hide_sidebar", False) or any(bool(l.get("hide_sidebar")) for l in acquired_links))
+    bundle_expand_enabled = bool(site.get("expand_enabled", False) or any(bool(l.get("expand_enabled")) for l in acquired_links))
+    bundle_expand_row = site.get("expand_row") or next((str(l.get("expand_row")).strip() for l in acquired_links if l.get("expand_row")), "Station Performance")
+
     try:
         for lk in acquired_links:
             lk_id = lk.get("id")
@@ -370,7 +379,12 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
             lk_threshold = dict(lk.get("threshold") or {})
             lk_threshold["prev_reading"] = lk.get("last_reading")
 
-            bot_log(f"[{site_name} -> {lk_title}] Initiating capture (bundled mode): {target_url}", site_id=site_id)
+            # Determine link-specific effective options (evenly applied in bundle)
+            effective_hide_sidebar = bundle_hide_sidebar or bool(lk.get("hide_sidebar"))
+            effective_expand_enabled = bundle_expand_enabled if lk.get("expand_enabled") is not False else False
+            effective_expand_row = (lk.get("expand_row") or bundle_expand_row) if effective_expand_enabled else "off"
+
+            bot_log(f"[{site_name} -> {lk_title}] Initiating capture (bundled mode, hide_sidebar={effective_hide_sidebar}, expand={effective_expand_row}): {target_url}", site_id=site_id)
             SiteManager.update_site_link(site_id, lk_id, {
                 "last_status": "Capturing...",
                 "last_run_ts": now_ts
@@ -386,7 +400,9 @@ def run_site_bundle_capture_and_alert(site_id, force=False):
                         username=lk_user,
                         password=lk_pwd,
                         token=lk_token,
-                        return_extracted=True
+                        return_extracted=True,
+                        expand_row=effective_expand_row,
+                        hide_sidebar=effective_hide_sidebar
                     )
                 if not lk_image or not os.path.exists(lk_image):
                     raise RuntimeError("Capture returned no output image file")

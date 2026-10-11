@@ -274,13 +274,22 @@ def preview_site_capture(site_id=None, link_id=None):
         preview_filename = f"preview_{effective_site_id}_{int(time.time() * 1000)}.png"
         preview_path = os.path.join(tempfile.gettempdir(), preview_filename)
 
+        is_bundle = bool(site.get("bundle_screenshots"))
+        effective_hide_sidebar = bool(
+            (target_link.get("hide_sidebar") if target_link else False) or
+            (is_bundle and site.get("hide_sidebar")) or
+            site.get("hide_sidebar", False)
+        )
+
         with GLOBAL_CAPTURE_SEMAPHORE:
             capture.capture_screenshot(
                 target_url=url,
                 output_path=preview_path,
                 username=user,
                 password=pwd,
-                token=tok
+                token=tok,
+                expand_row=(target_link.get("expand_row") or "Station Performance") if (target_link and target_link.get("expand_enabled")) else ("off" if target_link and target_link.get("expand_enabled") is False else None),
+                hide_sidebar=effective_hide_sidebar
             )
         size_kb = os.path.getsize(preview_path) / 1024
         return jsonify({
@@ -349,6 +358,13 @@ def preview_site_extracted_text(site_id=None, link_id=None):
     try:
         capture = GrafanaCapture(site_dict=site)
         temp_img = os.path.join(tempfile.gettempdir(), f"preview_eval_{int(time.time() * 1000)}.png")
+        is_bundle = bool(site.get("bundle_screenshots"))
+        effective_hide_sidebar = bool(
+            (target_link.get("hide_sidebar") if target_link else False) or
+            (is_bundle and site.get("hide_sidebar")) or
+            site.get("hide_sidebar", False)
+        )
+
         with GLOBAL_CAPTURE_SEMAPHORE:
             output_path, extraction = capture.capture_screenshot(
                 target_url=url,
@@ -356,7 +372,9 @@ def preview_site_extracted_text(site_id=None, link_id=None):
                 username=user,
                 password=pwd,
                 token=tok,
-                return_extracted=True
+                return_extracted=True,
+                expand_row=(target_link.get("expand_row") or "Station Performance") if (target_link and target_link.get("expand_enabled")) else ("off" if target_link and target_link.get("expand_enabled") is False else None),
+                hide_sidebar=effective_hide_sidebar
             )
         g_settings = SiteManager.get_global_settings()
         eval_res = evaluate_threshold(
