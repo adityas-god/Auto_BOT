@@ -10,10 +10,11 @@ Provides:
 
 import os
 import sys
+import re
 import time
 import tempfile
 import json
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 from playwright.sync_api import sync_playwright
 
 from core.config import BASE_DIR
@@ -30,7 +31,133 @@ class GrafanaCapture:
         self.site = site_dict or {}
         self.global_settings = SiteManager.get_global_settings()
 
-    def capture_screenshot(self, target_url=None, output_path=None, username=None, password=None, token=None, return_extracted=False):
+    def _expand_specific_rows(self, page, target_rows, site_name="Site", site_id=None):
+        """
+        Locates and expands ONLY the specified collapsed dashboard rows/panels
+        (e.g. ['Station Performance']) while keeping all other rows collapsed.
+        """
+        if not target_rows:
+            return
+
+        bot_log(f"[{site_name}] Auto-expanding specified dashboard rows: {target_rows}", site_id=site_id)
+
+        for raw_target in target_rows:
+            target = str(raw_target).strip()
+            if not target:
+                continue
+
+            expanded = False
+
+            # 1. Primary Strategy: Deep DOM traversal & click inside browser context
+            try:
+                res = page.evaluate("""(targetName) => {
+                    const target = targetName.toLowerCase().trim();
+
+                    // Strategy A: Row containers (e.g. .dashboard-row, [data-testid*="dashboard-row"])
+                    const rowContainers = document.querySelectorAll(
+                        '.dashboard-row, [data-testid*="dashboard-row"], [data-testid*="row-header"], [class*="dashboard-row"], [class*="DashboardRow"], div.react-grid-item'
+                    );
+
+                    for (const row of rowContainers) {
+                        const text = (row.innerText || row.textContent || '').trim().toLowerCase();
+                        if (text.includes(target)) {
+                            // Check if already open/expanded — if so, do NOT click (clicking an open row collapses it!)
+                            const isOpen = row.getAttribute('aria-expanded') === 'true' ||
+                                           row.querySelector('[aria-expanded="true"]') !== null ||
+                                           row.querySelector('[aria-label*="collapse" i]') !== null;
+                            if (isOpen) {
+                                return { success: true, method: 'row-already-expanded', text: text };
+                            }
+
+                            const isCollapsed = row.classList.contains('dashboard-row--collapsed') ||
+                                                row.getAttribute('aria-expanded') === 'false' ||
+                                                row.querySelector('[aria-expanded="false"]') !== null ||
+                                                /\\(\\d+\\s+panels?\\)/i.test(text);
+
+                            if (isCollapsed) {
+                                const clickTarget = row.querySelector('button, [role="button"], a, [class*="title"], svg') || row;
+                                clickTarget.click();
+                                return { success: true, method: 'row-container', text: text, wasCollapsed: true };
+                            }
+                            return { success: true, method: 'row-found-not-collapsed', text: text };
+                        }
+                    }
+
+                    // Strategy B: Aria-label on expand/toggle buttons
+                    const ariaButtons = document.querySelectorAll('button[aria-label], a[aria-label], [role="button"][aria-label]');
+                    for (const btn of ariaButtons) {
+                        const aria = (btn.getAttribute('aria-label') || '').toLowerCase();
+                        const text = (btn.innerText || btn.textContent || '').toLowerCase();
+                        if (aria.includes('collapse') && (aria.includes(target) || text.includes(target))) {
+                            return { success: true, method: 'aria-already-open', text: aria };
+                        }
+                        if ((aria.includes('expand') || aria.includes('toggle')) && (aria.includes(target) || text.includes(target))) {
+                            btn.click();
+                            return { success: true, method: 'aria-button', text: aria };
+                        }
+                    }
+
+                    // Strategy C: Text matching on element containing target and panel count pattern e.g. "Station Performance (7 panels)"
+                    const allCandidates = document.querySelectorAll('button, a, [role="button"], h1, h2, h3, h4, span, div');
+                    for (const el of allCandidates) {
+                        const text = (el.innerText || el.textContent || '').trim().toLowerCase();
+                        if (text.includes(target) && /\\(\\d+\\s+panels?\\)/i.test(text)) {
+                            el.click();
+                            return { success: true, method: 'text-and-panel-count', text: text };
+                        }
+                    }
+
+                    // Strategy D: Clickable element containing target text
+                    for (const el of allCandidates) {
+                        const text = (el.innerText || el.textContent || '').trim().toLowerCase();
+                        if (text === target || (text.startsWith(target) && text.length <= target.length + 15)) {
+                            const clickable = el.closest('[data-testid*="row"], .dashboard-row, div[role="button"], button') || el;
+                            if (clickable.getAttribute('aria-expanded') === 'true' || clickable.querySelector('[aria-expanded="true"]')) {
+                                return { success: true, method: 'exact-text-already-open', text: text };
+                            }
+                            clickable.click();
+                            return { success: true, method: 'exact-text-parent', text: text };
+                        }
+                    }
+
+                    return { success: false };
+                }""", target)
+
+                if res and res.get("success"):
+                    expanded = True
+                    bot_log(f"[{site_name}] Successfully expanded row '{target}' via {res.get('method')}", site_id=site_id)
+            except Exception as e:
+                bot_log(f"[{site_name}] DOM evaluate expansion attempt warning: {e}", site_id=site_id)
+
+            # 2. Secondary Strategy: Playwright native locator click if evaluate didn't catch it
+            if not expanded:
+                try:
+                    candidates = [
+                        page.locator("[data-testid*='dashboard-row']").filter(has_text=re.compile(rf"{re.escape(target)}", re.I)),
+                        page.locator(".dashboard-row").filter(has_text=re.compile(rf"{re.escape(target)}", re.I)),
+                        page.locator("button, [role='button'], div, span").filter(has_text=re.compile(rf"^{re.escape(target)}\\s*\\(\\d+\\s*panels?\\)", re.I)),
+                        page.locator("button, [role='button'], a, div").filter(has_text=re.compile(rf"{re.escape(target)}", re.I))
+                    ]
+                    for loc in candidates:
+                        if loc.count() > 0 and loc.first.is_visible():
+                            loc.first.click(timeout=3000)
+                            expanded = True
+                            bot_log(f"[{site_name}] Successfully expanded row '{target}' via Playwright locator", site_id=site_id)
+                            break
+                except Exception as loc_err:
+                    bot_log(f"[{site_name}] Playwright locator expansion attempt warning: {loc_err}", site_id=site_id)
+
+            if not expanded:
+                bot_log(f"[{site_name}] Notice: Row '{target}' was not found in collapsed state (it may already be open).", site_id=site_id)
+
+        # Allow Grafana time to trigger data queries and render newly revealed child panels
+        try:
+            page.wait_for_selector(".panel-loading, .loading-bar", state="hidden", timeout=8000)
+        except Exception:
+            pass
+        time.sleep(3)
+
+    def capture_screenshot(self, target_url=None, output_path=None, username=None, password=None, token=None, return_extracted=False, expand_row=None, hide_sidebar=None):
         url_to_capture = target_url or self.site.get("grafana_url")
         if not url_to_capture:
             raise ValueError("No Grafana URL configured.")
@@ -44,6 +171,88 @@ class GrafanaCapture:
         site_name = self.site.get("name", "Site")
         bot_log(f"[{site_name}] Navigating headlessly to Grafana: {prepared_url}", site_id=self.site.get("id"))
 
+        # Resolve target rows/panels to expand (e.g. ['Station Performance'])
+        parsed_u = urlparse(prepared_url)
+        qs = parse_qs(parsed_u.query)
+        target_rows_to_expand = []
+
+        # Check for explicit OFF flags (e.g. ?expand_row=off or ?expand=false or expand_row='off')
+        url_expansion_off = False
+        for off_k in ("expand_row", "expand_panel", "expand"):
+            if off_k in qs and any(str(v).lower() in ("false", "off", "0", "no") for v in qs[off_k]):
+                url_expansion_off = True
+                break
+
+        param_expansion_off = (expand_row is not None and str(expand_row).lower() in ("false", "off", "0", "no"))
+        has_url_override = bool([k for k in ("expand_row", "expand_rows", "expand_panel", "expand_panels") if k in qs and not url_expansion_off])
+        site_expand_enabled = self.site.get("expand_enabled")
+
+        # Only resolve target rows if expansion is not explicitly toggled OFF
+        if not url_expansion_off and not param_expansion_off and not (site_expand_enabled is False and not has_url_override):
+            # 1. From URL query parameters (?expand_row=Station Performance or &expand_panel=...)
+            for q_key in ("expand_row", "expand_rows", "expand_panel", "expand_panels", "expand"):
+                if q_key in qs:
+                    for val in qs[q_key]:
+                        for item in val.split(","):
+                            cleaned = item.strip().strip("'\"")
+                            if cleaned and cleaned.lower() not in ("true", "1", "yes", "on", "false", "0", "no", "off"):
+                                if cleaned not in target_rows_to_expand:
+                                    target_rows_to_expand.append(cleaned)
+
+            # 2. From site or link dictionary configuration (when expand_enabled is True or not explicitly False)
+            if site_expand_enabled is not False:
+                site_cfg = self.site.get("expand_row") or self.site.get("expand_panel") or self.site.get("expand_rows")
+                if site_cfg:
+                    if isinstance(site_cfg, list):
+                        for item in site_cfg:
+                            cleaned = str(item).strip().strip("'\"")
+                            if cleaned and cleaned not in target_rows_to_expand:
+                                target_rows_to_expand.append(cleaned)
+                    else:
+                        for item in str(site_cfg).split(","):
+                            cleaned = item.strip().strip("'\"")
+                            if cleaned and cleaned not in target_rows_to_expand:
+                                target_rows_to_expand.append(cleaned)
+
+            # 3. From explicit parameter
+            if expand_row and str(expand_row).lower() not in ("false", "off", "0", "no"):
+                if isinstance(expand_row, list):
+                    for item in expand_row:
+                        cleaned = str(item).strip().strip("'\"")
+                        if cleaned and cleaned not in target_rows_to_expand:
+                            target_rows_to_expand.append(cleaned)
+                else:
+                    for item in str(expand_row).split(","):
+                        cleaned = item.strip().strip("'\"")
+                        if cleaned and cleaned not in target_rows_to_expand:
+                            target_rows_to_expand.append(cleaned)
+
+        if target_rows_to_expand:
+            bot_log(f"[{site_name}] Target rows configured for auto-expansion (ON): {target_rows_to_expand}", site_id=self.site.get("id"))
+        elif site_expand_enabled is False or url_expansion_off:
+            bot_log(f"[{site_name}] Row auto-expansion is toggled OFF — capturing dashboard rows in default saved state.", site_id=self.site.get("id"))
+
+        # Resolve sidebar removal preference (Checkbox / URL override / Site / Bundle config)
+        url_hide_sidebar = None
+        for k in ("hide_sidebar", "remove_sidebar", "no_sidebar", "full_width"):
+            if k in qs:
+                v = str(qs[k][0]).lower().strip()
+                url_hide_sidebar = v in ("true", "1", "yes", "on")
+                break
+        if url_hide_sidebar is None and "sidebar" in qs:
+            v = str(qs["sidebar"][0]).lower().strip()
+            url_hide_sidebar = v in ("false", "0", "off", "no")
+
+        if hide_sidebar is not None:
+            if isinstance(hide_sidebar, str):
+                effective_hide_sidebar = str(hide_sidebar).lower().strip() in ("true", "1", "yes", "on")
+            else:
+                effective_hide_sidebar = bool(hide_sidebar)
+        elif url_hide_sidebar is not None:
+            effective_hide_sidebar = url_hide_sidebar
+        else:
+            effective_hide_sidebar = bool(self.site.get("hide_sidebar", False))
+
         # Resolve best credentials using intelligent fallback
         user, pwd, auth_token = resolve_link_auth(
             self.site,
@@ -51,7 +260,6 @@ class GrafanaCapture:
             target_url=prepared_url
         )
 
-        parsed_u = urlparse(prepared_url)
         base_url = f"{parsed_u.scheme}://{parsed_u.netloc}"
         c_domain = parsed_u.hostname or "127.0.0.1"
         is_https = prepared_url.lower().startswith("https")
@@ -263,12 +471,24 @@ class GrafanaCapture:
             effective_expiry = str(int(time.time()) + 31536000)
             sec_flag = "; Secure" if is_https else ""
             try:
-                page.add_init_script(f"""
-                    try {{
-                        document.cookie = "grafana_session_expiry={effective_expiry}; path=/; max-age=31536000; SameSite=Lax{sec_flag}";
-                        document.cookie = "grafana_logged_in=true; path=/; max-age=31536000; SameSite=Lax{sec_flag}";
-                    }} catch(e) {{}}
-                """)
+                if effective_hide_sidebar:
+                    page.add_init_script(f"""
+                        try {{
+                            document.cookie = "grafana_session_expiry={effective_expiry}; path=/; max-age=31536000; SameSite=Lax{sec_flag}";
+                            document.cookie = "grafana_logged_in=true; path=/; max-age=31536000; SameSite=Lax{sec_flag}";
+                            localStorage.setItem('grafana.navigation.docked', 'false');
+                            localStorage.setItem('grafana.navigation.open', 'false');
+                            localStorage.setItem('grafana.sidemenu.open', 'false');
+                            sessionStorage.setItem('grafana.navigation.docked', 'false');
+                        }} catch(e) {{}}
+                    """)
+                else:
+                    page.add_init_script(f"""
+                        try {{
+                            document.cookie = "grafana_session_expiry={effective_expiry}; path=/; max-age=31536000; SameSite=Lax{sec_flag}";
+                            document.cookie = "grafana_logged_in=true; path=/; max-age=31536000; SameSite=Lax{sec_flag}";
+                        }} catch(e) {{}}
+                    """)
             except Exception:
                 pass
 
@@ -480,13 +700,96 @@ class GrafanaCapture:
 
                 time.sleep(page_wait)
 
-                try:
-                    page.add_style_tag(content="""
-                        .grafana-tooltip, .portal-wrapper { display: none !important; }
-                        body { overflow: hidden !important; }
-                    """)
-                except Exception:
-                    pass
+                # Expand specifically targeted dashboard rows/panels if requested (e.g. 'Station Performance')
+                if target_rows_to_expand:
+                    self._expand_specific_rows(page, target_rows_to_expand, site_name=site_name, site_id=self.site.get("id"))
+
+                if effective_hide_sidebar:
+                    bot_log(f"[{site_name}] Left sidebar removal is ON (rendering full-width dashboard panels).", site_id=self.site.get("id"))
+                    try:
+                        page.add_style_tag(content="""
+                            .grafana-tooltip, .portal-wrapper { display: none !important; }
+                            body { overflow: hidden !important; }
+
+                            /* Target ONLY the left-hand navigation sidebar/menu — NEVER hide dashboard panels or rows */
+                            nav[aria-label*="Main" i],
+                            nav[aria-label*="Navigation" i],
+                            nav[aria-label*="Search and navigation" i],
+                            [data-testid*="sidemenu"],
+                            [data-testid*="navigation-sidebar"],
+                            .sidemenu,
+                            [class*="sidemenu"],
+                            [class*="navigation--docked"],
+                            [class*="docked-navigation"],
+                            [class*="MegaMenu"] {
+                                display: none !important;
+                                width: 0 !important;
+                                min-width: 0 !important;
+                                max-width: 0 !important;
+                                visibility: hidden !important;
+                                position: absolute !important;
+                                left: -9999px !important;
+                            }
+
+                            /* Stretch dashboard canvas to full width */
+                            main,
+                            .main-view,
+                            [class*="main-view"],
+                            .dashboard-container,
+                            [class*="page-container"],
+                            [class*="dashboard-content"],
+                            .react-grid-layout {
+                                width: 100% !important;
+                                max-width: 100% !important;
+                                margin-left: 0 !important;
+                                padding-left: 0 !important;
+                                left: 0 !important;
+                            }
+                        """)
+                    except Exception:
+                        pass
+
+                    # Hide ONLY the left navigation bar (Home, Dashboards, Alerting) without affecting dashboard panels
+                    try:
+                        page.evaluate("""() => {
+                            // Find and target specifically the left-hand navigation menu container
+                            const candidates = document.querySelectorAll('nav, aside, div');
+                            for (const el of candidates) {
+                                try {
+                                    const r = el.getBoundingClientRect();
+                                    // Docked on the far left edge of the viewport
+                                    if (r.left <= 30 && r.width > 20 && r.width <= 350 && r.height > window.innerHeight * 0.4) {
+                                        const text = (el.innerText || '').toLowerCase();
+                                        // Ensure it's the Grafana left navigation menu
+                                        if (text.includes('home') && (text.includes('dashboards') || text.includes('starred') || text.includes('alerting'))) {
+                                            // Click undock/dock toggle inside this sidebar if present
+                                            const undockBtn = el.querySelector('button[aria-label*="dock" i], button[aria-label*="undock" i], button[title*="dock" i], button[data-testid*="dock" i]');
+                                            if (undockBtn) {
+                                                try { undockBtn.click(); } catch(e) {}
+                                            }
+                                            // Directly hide the sidebar element
+                                            el.style.setProperty('display', 'none', 'important');
+                                            el.style.setProperty('width', '0px', 'important');
+                                            el.style.setProperty('visibility', 'hidden', 'important');
+                                        }
+                                    }
+                                } catch(e) {}
+                            }
+
+                            // Trigger window resize so React grid layout expands panels to 100% width
+                            window.dispatchEvent(new Event('resize'));
+                        }""")
+                        time.sleep(0.5)
+                    except Exception:
+                        pass
+                else:
+                    bot_log(f"[{site_name}] Left sidebar removal is OFF — capturing standard dashboard layout.", site_id=self.site.get("id"))
+                    try:
+                        page.add_style_tag(content="""
+                            .grafana-tooltip, .portal-wrapper { display: none !important; }
+                        """)
+                    except Exception:
+                        pass
 
                 shot_taken = False
                 if "/d-solo/" in prepared_url:
@@ -533,7 +836,7 @@ class GrafanaCapture:
                     try: os.remove(temp_st_to_clean)
                     except Exception: pass
 
-    def extract_dashboard_data(self, target_url=None, username=None, password=None, token=None):
+    def extract_dashboard_data(self, target_url=None, username=None, password=None, token=None, expand_row=None, hide_sidebar=None):
         temp_img = os.path.join(tempfile.gettempdir(), f"extract_temp_{int(time.time() * 1000)}.png")
         try:
             _, extraction = self.capture_screenshot(
@@ -542,7 +845,9 @@ class GrafanaCapture:
                 username=username,
                 password=password,
                 token=token,
-                return_extracted=True
+                return_extracted=True,
+                expand_row=expand_row,
+                hide_sidebar=hide_sidebar
             )
             return extraction
         finally:
